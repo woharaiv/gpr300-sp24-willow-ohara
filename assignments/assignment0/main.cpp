@@ -2,6 +2,12 @@
 #include <math.h>
 
 #include <ew/external/glad.h>
+#include <ew/shader.h>
+#include <ew/model.h>
+#include <ew/camera.h>
+#include <ew/transform.h>
+#include <ew/cameraController.h>
+#include <ew/texture.h>
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -11,6 +17,10 @@
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 GLFWwindow* initWindow(const char* title, int width, int height);
 void drawUI();
+void resetCamera(ew::Camera* camera, ew::CameraController* controller);
+
+ew::Camera camera;
+ew::CameraController cameraController;
 
 //Global state
 int screenWidth = 1080;
@@ -22,6 +32,22 @@ int main() {
 	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK); //Back-face culling
+	glEnable(GL_DEPTH_TEST); //Depth testing
+
+	camera.position = glm::vec3(0.0f, 0.0f, 5.0f);
+	camera.target = glm::vec3(0.0f, 0.0f, 0.0f); //Camera looks at center of scren
+	camera.aspectRatio = (float)screenWidth / screenHeight;
+	camera.fov = 60.0f; //Field of view in degrees
+	
+	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
+
+	GLuint brickTexture = ew::loadTexture("assets/marble_color.jpg");
+
+	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
+	ew::Transform monkeyTransform;
+
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 
@@ -32,6 +58,22 @@ int main() {
 		//RENDER
 		glClearColor(0.6f,0.8f,0.92f,1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		cameraController.move(window, &camera, deltaTime);
+		
+		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
+
+		//Bind brick texture to texture unit 0
+		glBindTextureUnit(0, brickTexture); //glBindTextureUnit() is a new function to OpenGL 4.5
+
+		//Use lit shader
+		shader.use();
+
+		//Set up shader to draw monkey
+		shader.setMat4("_Model", monkeyTransform.modelMatrix());
+		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+		shader.setInt("_MainTex", 0);
+		monkeyModel.draw(); //Draw monkey model with current shader
 
 		drawUI();
 
@@ -46,7 +88,9 @@ void drawUI() {
 	ImGui::NewFrame();
 
 	ImGui::Begin("Settings");
-	ImGui::Text("Add Controls Here!");
+	if (ImGui::Button("Reset Camera"))
+		resetCamera(&camera, &cameraController);
+
 	ImGui::End();
 
 	ImGui::Render();
@@ -58,6 +102,14 @@ void framebufferSizeCallback(GLFWwindow* window, int width, int height)
 	glViewport(0, 0, width, height);
 	screenWidth = width;
 	screenHeight = height;
+	camera.aspectRatio = (float)screenWidth / screenHeight;
+}
+
+void resetCamera(ew::Camera* camera, ew::CameraController* controller) 
+{
+	camera->position = glm::vec3(0, 0, 5.0f);
+	camera->target = glm::vec3(0);
+	controller->yaw = controller->pitch = 0;
 }
 
 /// <summary>
