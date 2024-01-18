@@ -8,6 +8,7 @@ in Surface{
 	}fs_in;
 
 uniform sampler2D _MainTex;
+uniform sampler2D _RoughnessTex;
 
 uniform vec3 _CameraPos;
 
@@ -36,7 +37,7 @@ void main()
 
 	//Specular
 	vec3 h = normalize(toLight + toCamera); //Blinn-Phong uses half angle
-	float specularFactor = pow(max(dot(normal,h),0.0),_Material.Shininess);
+	float specularFactor = pow(max(dot(normal,h),0.0),_Material.Shininess) * texture(_RoughnessTex, fs_in.TexCoord).r;
 	
 	vec3 lightColor = ((_Material.Kd * diffuseFactor + _Material.Ks * specularFactor) * _LightColor) + _Material.Ka * _AmbientColor;
 	vec3 objectColor = texture(_MainTex, fs_in.TexCoord).rgb;
