@@ -38,6 +38,8 @@ int screenHeight = 720;
 float prevFrameTime;
 float deltaTime;
 
+	ew::Transform monkeyTransform;
+
 int main() {
 	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
@@ -53,10 +55,10 @@ int main() {
 	
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
 
-	GLuint brickTexture = ew::loadTexture("assets/marble_color.jpg");
+	GLuint marbleTexture = ew::loadTexture("assets/marble_color.jpg");
+	GLuint marbleRoughness = ew::loadTexture("assets/marble_roughness.jpg");
 
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
-	ew::Transform monkeyTransform;
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -70,11 +72,9 @@ int main() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		cameraController.move(window, &camera, deltaTime);
-		
-		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
 
 		//Bind brick texture to texture unit 0
-		glBindTextureUnit(0, brickTexture); //glBindTextureUnit() is a new function to OpenGL 4.5
+		glBindTextureUnit(0, marbleTexture); //glBindTextureUnit() is a new function to OpenGL 4.5
 
 		//Use lit shader
 		shader.use();
@@ -108,11 +108,24 @@ void drawUI() {
 	if (ImGui::Button("Reset Camera"))
 		resetCamera(&camera, &cameraController);
 	if (ImGui::CollapsingHeader("Material")) {
-		ImGui::SliderFloat("Ambient Coefficient", &material.Ka, 0.0f, 1.0f);
-		ImGui::SliderFloat("Diffuse Coefficient", &material.Kd, 0.0f, 1.0f);
-		ImGui::SliderFloat("Specular Coefficient", &material.Ks, 0.0f, 1.0f);
+		ImGui::SliderFloat("Ambient Coefficient", &material.Ka, 0.0f, 2.0f);
+		ImGui::SliderFloat("Diffuse Coefficient", &material.Kd, 0.0f, 2.0f);
+		ImGui::SliderFloat("Specular Coefficient", &material.Ks, 0.0f, 2.0f);
 		ImGui::SliderFloat("Shininess", &material.Shininess, 2.0f, 1024.0f);
 	}
+	
+	ImGui::Text("Rotate");
+	ImGui::SameLine();
+	// Arrow buttons with Repeater
+	float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
+	ImGui::PushButtonRepeat(true);
+	if (ImGui::ArrowButton("##left", ImGuiDir_Left))
+		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, -5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
+	ImGui::SameLine(0.0f, spacing);
+	if (ImGui::ArrowButton("##right", ImGuiDir_Right))
+		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, 5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
+	ImGui::PopButtonRepeat();
+	ImGui::Separator();
 	ImGui::End();
 
 	ImGui::Render();
