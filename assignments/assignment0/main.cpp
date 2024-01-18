@@ -22,6 +22,8 @@ void resetCamera(ew::Camera* camera, ew::CameraController* controller);
 ew::Camera camera;
 ew::CameraController cameraController;
 
+const glm::vec3 BACKGROUND_COLOR = glm::vec3(0.6f, 0.8f, 0.92f);
+
 //Global state
 int screenWidth = 1080;
 int screenHeight = 720;
@@ -56,7 +58,7 @@ int main() {
 		prevFrameTime = time;
 
 		//RENDER
-		glClearColor(0.6f,0.8f,0.92f,1.0f);
+		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		cameraController.move(window, &camera, deltaTime);
@@ -70,6 +72,7 @@ int main() {
 		shader.use();
 
 		shader.setVec3("_CameraPos", camera.position);
+		shader.setVec3("_AmbientColor", BACKGROUND_COLOR/2.0f); //Ambient color is realtive to background color, making it feel natural
 
 		//Set up shader to draw monkey
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
