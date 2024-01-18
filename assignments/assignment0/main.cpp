@@ -69,6 +69,8 @@ int main() {
 		//Use lit shader
 		shader.use();
 
+		shader.setVec3("_CameraPos", camera.position);
+
 		//Set up shader to draw monkey
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
