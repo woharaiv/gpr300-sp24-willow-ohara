@@ -24,6 +24,14 @@ ew::CameraController cameraController;
 
 const glm::vec3 BACKGROUND_COLOR = glm::vec3(0.6f, 0.8f, 0.92f);
 
+struct Material {
+	float Ka = 1.0;
+	float Kd = 0.5;
+	float Ks = 0.5;
+	float Shininess = 128;
+}material;
+
+
 //Global state
 int screenWidth = 1080;
 int screenHeight = 720;
@@ -78,6 +86,10 @@ int main() {
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		shader.setInt("_MainTex", 0);
+		shader.setFloat("_Material.Ka", material.Ka);
+		shader.setFloat("_Material.Kd", material.Kd);
+		shader.setFloat("_Material.Ks", material.Ks);
+		shader.setFloat("_Material.Shininess", material.Shininess);
 		monkeyModel.draw(); //Draw monkey model with current shader
 
 		drawUI();
@@ -95,7 +107,12 @@ void drawUI() {
 	ImGui::Begin("Settings");
 	if (ImGui::Button("Reset Camera"))
 		resetCamera(&camera, &cameraController);
-
+	if (ImGui::CollapsingHeader("Material")) {
+		ImGui::SliderFloat("Ambient Coefficient", &material.Ka, 0.0f, 1.0f);
+		ImGui::SliderFloat("Diffuse Coefficient", &material.Kd, 0.0f, 1.0f);
+		ImGui::SliderFloat("Specular Coefficient", &material.Ks, 0.0f, 1.0f);
+		ImGui::SliderFloat("Shininess", &material.Shininess, 2.0f, 1024.0f);
+	}
 	ImGui::End();
 
 	ImGui::Render();
