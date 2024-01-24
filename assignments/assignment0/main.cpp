@@ -73,8 +73,10 @@ int main() {
 
 		cameraController.move(window, &camera, deltaTime);
 
-		//Bind brick texture to texture unit 0
+		//Bind marble texture to texture unit 0
 		glBindTextureUnit(0, marbleTexture); //glBindTextureUnit() is a new function to OpenGL 4.5
+		//Bind marble roughness map to texture unit 1
+		glBindTextureUnit(1, marbleRoughness);
 
 		//Use lit shader
 		shader.use();
@@ -86,6 +88,7 @@ int main() {
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		shader.setInt("_MainTex", 0);
+		shader.setInt("_RoughnessTex", 1);
 		shader.setFloat("_Material.Ka", material.Ka);
 		shader.setFloat("_Material.Kd", material.Kd);
 		shader.setFloat("_Material.Ks", material.Ks);
