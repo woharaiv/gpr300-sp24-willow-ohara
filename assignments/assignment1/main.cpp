@@ -33,6 +33,7 @@ struct Material {
 
 
 //Global state
+glm::vec2 screenSize = { 1080, 720 };
 int screenWidth = 1080;
 int screenHeight = 720;
 float prevFrameTime;
@@ -60,9 +61,11 @@ float quad[] = {
 unsigned int screenVBO;
 unsigned int screenVAO;
 
+//Post-Processing effects
+float vignetteStrength = 1;
 
 int main() {
-	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);
+	GLFWwindow* window = initWindow("Assignment 0", screenSize.x, screenSize.y);
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
 	glEnable(GL_CULL_FACE);
@@ -75,7 +78,7 @@ int main() {
 
 	glGenTextures(1, &colorBuffer);
 	glBindTexture(GL_TEXTURE_2D, colorBuffer);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, screenWidth, screenHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, screenSize.x, screenSize.y, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glBindTexture(GL_TEXTURE_2D, 0);
@@ -92,7 +95,7 @@ int main() {
 
 	camera.position = glm::vec3(0.0f, 0.0f, 5.0f);
 	camera.target = glm::vec3(0.0f, 0.0f, 0.0f); //Camera looks at center of scren
-	camera.aspectRatio = (float)screenWidth / screenHeight;
+	camera.aspectRatio = (float)screenSize.x / screenSize.y;
 	camera.fov = 60.0f; //Field of view in degrees
 
 	//Set up VAO and VBO for screen quad
@@ -112,7 +115,8 @@ int main() {
 	glBindVertexArray(0);
 	
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
-	ew::Shader postProcess = ew::Shader("assets/post.vert", "assets/post.frag");
+	ew::Shader post_none = ew::Shader("assets/post_none.vert", "assets/post_none.frag");
+	ew::Shader post_vignette = ew::Shader("assets/post_none.vert", "assets/post_vignette.frag");
 
 	GLuint marbleTexture = ew::loadTexture("assets/marble_color.jpg");
 	GLuint marbleRoughness = ew::loadTexture("assets/marble_roughness.jpg");
@@ -168,8 +172,10 @@ int main() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glBindVertexArray(screenVAO);
 		glBindTexture(GL_TEXTURE_2D, colorBuffer);
-		postProcess.use();
-		postProcess.setInt("screenTexture", 0);
+		post_vignette.use();
+		post_vignette.setInt("screenTexture", 0);
+		post_vignette.setVec2("screenSize", screenSize);
+		post_vignette.setFloat("vignetteStrength", vignetteStrength);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		
 		
@@ -189,6 +195,7 @@ void drawUI() {
 	ImGui::Begin("Settings");
 	if (ImGui::Button("Reset Camera"))
 		resetCamera(&camera, &cameraController);
+	ImGui::SliderFloat("Vignette Strength", &vignetteStrength, 0.0f, 10);
 	if (ImGui::CollapsingHeader("Material")) {
 		ImGui::SliderFloat("Ambient Coefficient", &material.Ka, 0.0f, 2.0f);
 		ImGui::SliderFloat("Diffuse Coefficient", &material.Kd, 0.0f, 2.0f);
@@ -217,9 +224,9 @@ void drawUI() {
 void framebufferSizeCallback(GLFWwindow* window, int width, int height)
 {
 	glViewport(0, 0, width, height);
-	screenWidth = width;
-	screenHeight = height;
-	camera.aspectRatio = (float)screenWidth / screenHeight;
+	screenSize.x = width;
+	screenSize.y = height;
+	camera.aspectRatio = (float)screenSize.x / screenSize.y;
 }
 
 void resetCamera(ew::Camera* camera, ew::CameraController* controller) 
