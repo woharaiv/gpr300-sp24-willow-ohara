@@ -33,7 +33,7 @@ struct Material {
 
 
 //Global state
-glm::vec2 screenSize = { 1080, 720 };
+glm::vec2 screenSize = { 1080, 720 }; //Converted this to a vec2 because a previous version of the post-processing shaders used this passed as a vec2 instead of the color buffer's size to get the screen size
 float prevFrameTime;
 float deltaTime;
 
@@ -60,19 +60,23 @@ unsigned int screenVBO;
 unsigned int screenVAO;
 
 //Post-Processing effectSelection
-const int NUM_POSTPROCESSING_EFFECTS = 2;
 int numSelectedPostProcessingEffects = 0;
 struct PostProcessingEffectSelection {
-	ew::Shader* shader;
+	ew::Shader* shader = nullptr;
 	bool enabled = false;
 };
-PostProcessingEffectSelection effectSelection[NUM_POSTPROCESSING_EFFECTS];
 enum PostProcessingEffect
 {
 	VIGNETTE,
+	CURVE,
+	SCANLINES,
 	INVERT,
 };
+const int NUM_POSTPROCESSING_EFFECTS = 1 + INVERT;
+PostProcessingEffectSelection effectSelection[NUM_POSTPROCESSING_EFFECTS];
+
 float vignetteStrength = 1;
+float curvature = 5;
 
 
 int main() {
@@ -132,6 +136,12 @@ int main() {
 	ew::Shader post_vignette = ew::Shader("assets/post_none.vert", "assets/post_vignette.frag");
 	effectSelection[VIGNETTE] = {&post_vignette, false};
 
+	ew::Shader post_curve = ew::Shader("assets/post_none.vert", "assets/post_curve.frag");
+	effectSelection[CURVE] = { &post_curve, false };
+
+	ew::Shader post_scanlines = ew::Shader("assets/post_none.vert", "assets/post_scanlines.frag");
+	effectSelection[SCANLINES] = { &post_scanlines, false };
+	
 	ew::Shader post_invert = ew::Shader("assets/post_none.vert", "assets/post_invert.frag");
 	effectSelection[INVERT] = { &post_invert, false };
 
@@ -206,9 +216,11 @@ int main() {
 					switch (i)
 					{
 					case VIGNETTE:
-						effect.shader->setVec2("screenSize", screenSize);
 						effect.shader->setFloat("vignetteStrength", vignetteStrength);
-						break;	
+						break;
+					case CURVE:
+						effect.shader->setFloat("curvature", curvature);
+						break;
 					}
 					effect.shader->setInt("screenTexture", 0);
 					glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -261,19 +273,33 @@ void drawUI() {
 	if (ImGui::CollapsingHeader("Post-Processing Effects"))
 	{
 		numSelectedPostProcessingEffects = 0;
+
 		ImGui::Checkbox("Vignette", &effectSelection[VIGNETTE].enabled);
 		if(effectSelection[VIGNETTE].enabled)
 		{
-			ImGui::SliderFloat("Vignette Strength", &vignetteStrength, 0.0f, 10);
+			ImGui::SliderFloat("Vignette Strength", &vignetteStrength, 0, 10);
 			numSelectedPostProcessingEffects++;
 		}
+
+		ImGui::Checkbox("Curve", &effectSelection[CURVE].enabled);
+		if (effectSelection[CURVE].enabled)
+		{
+			ImGui::SliderFloat("Curvature", &curvature, 0, 10);
+			numSelectedPostProcessingEffects++;
+		}
+
+		ImGui::Checkbox("Scanlines", &effectSelection[SCANLINES].enabled);
+		if (effectSelection[SCANLINES].enabled)
+		{
+			numSelectedPostProcessingEffects++;
+		}
+
 		ImGui::Checkbox("Invert Colors", &effectSelection[INVERT].enabled);
 		if (effectSelection[INVERT].enabled)
 		{
 			numSelectedPostProcessingEffects++;
 		}
 	}
-	ImGui::Text("Selected effects: %d", numSelectedPostProcessingEffects);
 	
 	ImGui::Text("Rotate");
 	ImGui::SameLine();
