@@ -70,7 +70,7 @@ PostProcessingEffectSelection effectSelection[NUM_POSTPROCESSING_EFFECTS];
 enum PostProcessingEffect
 {
 	VIGNETTE,
-	TEST,
+	INVERT,
 };
 float vignetteStrength = 1;
 
@@ -132,8 +132,8 @@ int main() {
 	ew::Shader post_vignette = ew::Shader("assets/post_none.vert", "assets/post_vignette.frag");
 	effectSelection[VIGNETTE] = {&post_vignette, false};
 
-	ew::Shader post_test = ew::Shader("assets/post_none.vert", "assets/post_test.frag");
-	effectSelection[TEST] = { &post_test, false };
+	ew::Shader post_invert = ew::Shader("assets/post_none.vert", "assets/post_invert.frag");
+	effectSelection[INVERT] = { &post_invert, false };
 
 	GLuint marbleTexture = ew::loadTexture("assets/marble_color.jpg");
 	GLuint marbleRoughness = ew::loadTexture("assets/marble_roughness.jpg");
@@ -208,10 +208,9 @@ int main() {
 					case VIGNETTE:
 						effect.shader->setVec2("screenSize", screenSize);
 						effect.shader->setFloat("vignetteStrength", vignetteStrength);
-					default:
-						effect.shader->setInt("screenTexture", 0);
-						
+						break;	
 					}
+					effect.shader->setInt("screenTexture", 0);
 					glDrawArrays(GL_TRIANGLES, 0, 6);
 					pass++;
 
@@ -268,8 +267,8 @@ void drawUI() {
 			ImGui::SliderFloat("Vignette Strength", &vignetteStrength, 0.0f, 10);
 			numSelectedPostProcessingEffects++;
 		}
-		ImGui::Checkbox("Test", &effectSelection[TEST].enabled);
-		if (effectSelection[TEST].enabled)
+		ImGui::Checkbox("Invert Colors", &effectSelection[INVERT].enabled);
+		if (effectSelection[INVERT].enabled)
 		{
 			numSelectedPostProcessingEffects++;
 		}
