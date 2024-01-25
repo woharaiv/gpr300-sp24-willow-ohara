@@ -34,16 +34,14 @@ struct Material {
 
 //Global state
 glm::vec2 screenSize = { 1080, 720 };
-int screenWidth = 1080;
-int screenHeight = 720;
 float prevFrameTime;
 float deltaTime;
 
 ew::Transform monkeyTransform;
 
 //Framebuffer
-unsigned int fbo;
-unsigned int colorBuffer;
+unsigned int pingpongFBO[2];
+unsigned int pingpongColorBuffer[2];
 
 //Screen Quad
 float quad[] = {
@@ -61,8 +59,21 @@ float quad[] = {
 unsigned int screenVBO;
 unsigned int screenVAO;
 
-//Post-Processing effects
+//Post-Processing effectSelection
+const int NUM_POSTPROCESSING_EFFECTS = 2;
+int numSelectedPostProcessingEffects = 0;
+struct PostProcessingEffectSelection {
+	ew::Shader* shader;
+	bool enabled = false;
+};
+PostProcessingEffectSelection effectSelection[NUM_POSTPROCESSING_EFFECTS];
+enum PostProcessingEffect
+{
+	VIGNETTE,
+	TEST,
+};
 float vignetteStrength = 1;
+
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 0", screenSize.x, screenSize.y);
@@ -73,17 +84,18 @@ int main() {
 	glEnable(GL_DEPTH_TEST); //Depth testing
 
 	//create framebuffer
-	glGenFramebuffers(1, &fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glGenFramebuffers(2, pingpongFBO);
+	glGenTextures(2, pingpongColorBuffer);
 
-	glGenTextures(1, &colorBuffer);
-	glBindTexture(GL_TEXTURE_2D, colorBuffer);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, screenSize.x, screenSize.y, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glBindTexture(GL_TEXTURE_2D, 0);
-
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
+	for (int i = 0; i < 2; i++)
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
+		glBindTexture(GL_TEXTURE_2D, pingpongColorBuffer[i]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, screenSize.x, screenSize.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pingpongColorBuffer[i], 0);
+	}
 
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 	{
@@ -116,7 +128,12 @@ int main() {
 	
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
 	ew::Shader post_none = ew::Shader("assets/post_none.vert", "assets/post_none.frag");
+
 	ew::Shader post_vignette = ew::Shader("assets/post_none.vert", "assets/post_vignette.frag");
+	effectSelection[VIGNETTE] = {&post_vignette, false};
+
+	ew::Shader post_test = ew::Shader("assets/post_none.vert", "assets/post_test.frag");
+	effectSelection[TEST] = { &post_test, false };
 
 	GLuint marbleTexture = ew::loadTexture("assets/marble_color.jpg");
 	GLuint marbleRoughness = ew::loadTexture("assets/marble_roughness.jpg");
@@ -133,7 +150,7 @@ int main() {
 		//RENDER
 		
 		//Bind color buffer
-		glBindFramebuffer(GL_FRAMEBUFFER, colorBuffer);
+		glBindFramebuffer(GL_FRAMEBUFFER, pingpongColorBuffer[0]);
 		
 		//Clear framebuffer
 		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
@@ -165,17 +182,56 @@ int main() {
 		monkeyModel.draw(); //Draw monkey model with current shader
 		
 	  //=====POST-RPOCESSING=====
-		//Unbind so ui and post-processing doesn't draw to buffer
+		int i = 0;
+		int pass = 0;
+		
+		if (numSelectedPostProcessingEffects > 0)
+		{
+			//Create a loop that draws each selected effect to the buffer until the last one, which draws to the screen
+			for each (PostProcessingEffectSelection effect in effectSelection)
+			{
+				if (effect.enabled)
+				{
+					effect.shader->use();
+					
+					//Draw framebuffer contents onto buffer opposite of last time
+					glBindFramebuffer(GL_FRAMEBUFFER, pingpongColorBuffer[(pass + 1) % 2]);
+					//Clear buffer for draw
+					glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
+					glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+					glBindVertexArray(screenVAO);
+					glBindTexture(GL_TEXTURE_2D, pingpongColorBuffer[pass % 2]);
+					
+					//Set variables for shader
+					switch (i)
+					{
+					case VIGNETTE:
+						effect.shader->setVec2("screenSize", screenSize);
+						effect.shader->setFloat("vignetteStrength", vignetteStrength);
+					default:
+						effect.shader->setInt("screenTexture", 0);
+						
+					}
+					glDrawArrays(GL_TRIANGLES, 0, 6);
+					pass++;
+
+					//Don't bother looping anymore once we know we've hit all the chosen effects
+					if (pass >= numSelectedPostProcessingEffects)
+						break;
+				}
+				i++;
+			}
+		}
+		
+	    //Unbind to draw to screen rather than buffer
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		//Clear default buffer
+		//Clear buffer for final draw
 		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glBindVertexArray(screenVAO);
-		glBindTexture(GL_TEXTURE_2D, colorBuffer);
-		post_vignette.use();
-		post_vignette.setInt("screenTexture", 0);
-		post_vignette.setVec2("screenSize", screenSize);
-		post_vignette.setFloat("vignetteStrength", vignetteStrength);
+		glBindTexture(GL_TEXTURE_2D, pingpongColorBuffer[(pass) % 2]);
+		post_none.use();
+		post_none.setInt("screenTexture", 0);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		
 		
@@ -191,17 +247,34 @@ void drawUI() {
 	ImGui_ImplGlfw_NewFrame();
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui::NewFrame();
-
 	ImGui::Begin("Settings");
+
 	if (ImGui::Button("Reset Camera"))
 		resetCamera(&camera, &cameraController);
-	ImGui::SliderFloat("Vignette Strength", &vignetteStrength, 0.0f, 10);
+	
 	if (ImGui::CollapsingHeader("Material")) {
 		ImGui::SliderFloat("Ambient Coefficient", &material.Ka, 0.0f, 2.0f);
 		ImGui::SliderFloat("Diffuse Coefficient", &material.Kd, 0.0f, 2.0f);
 		ImGui::SliderFloat("Specular Coefficient", &material.Ks, 0.0f, 2.0f);
 		ImGui::SliderFloat("Shininess", &material.Shininess, 2.0f, 1024.0f);
 	}
+	
+	if (ImGui::CollapsingHeader("Post-Processing Effects"))
+	{
+		numSelectedPostProcessingEffects = 0;
+		ImGui::Checkbox("Vignette", &effectSelection[VIGNETTE].enabled);
+		if(effectSelection[VIGNETTE].enabled)
+		{
+			ImGui::SliderFloat("Vignette Strength", &vignetteStrength, 0.0f, 10);
+			numSelectedPostProcessingEffects++;
+		}
+		ImGui::Checkbox("Test", &effectSelection[TEST].enabled);
+		if (effectSelection[TEST].enabled)
+		{
+			numSelectedPostProcessingEffects++;
+		}
+	}
+	ImGui::Text("Selected effects: %d", numSelectedPostProcessingEffects);
 	
 	ImGui::Text("Rotate");
 	ImGui::SameLine();
