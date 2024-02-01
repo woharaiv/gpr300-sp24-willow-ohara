@@ -75,7 +75,7 @@ static void createShadowPass()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	//Change buffer texture's compare function
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_MIRRORED_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
 	//Change buffer texture's compare function
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_EQUAL);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
@@ -221,8 +221,7 @@ int main() {
 
 	shadowEye.position = glm::vec3(0.0f, 0.0f, 5.0f);
 	shadowEye.target = glm::vec3(0.0f, 0.0f, 0.0f);
-	shadowEye.aspectRatio = (float)screenSize.x / screenSize.y;
-	shadowEye.fov = 60.0f; //Field of view in degrees
+	shadowEye.orthographic = true;
 
 	//===Screen Quad Rendering===
 	//Set up VAO and VBO for screen quad
@@ -390,7 +389,7 @@ int main() {
 		debugShader.use();
 
 		glBindVertexArray(screenVAO);
-		glViewport(screenSize.x - 150, 0, 150, 150);
+		//glViewport(screenSize.x - 150, 0, 150, 150);
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, shadow.map);
 		debugShader.setInt("debug_image", 0);
