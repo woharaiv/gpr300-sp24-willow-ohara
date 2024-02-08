@@ -8,6 +8,7 @@
 #include <ew/transform.h>
 #include <ew/cameraController.h>
 #include <ew/texture.h>
+#include <ew/procGen.h>
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -40,6 +41,7 @@ float prevFrameTime;
 float deltaTime;
 
 ew::Transform monkeyTransform;
+ew::Transform planeTransform;
 
 //Framebuffer
 unsigned int pingpongFBO[2];
@@ -57,6 +59,8 @@ struct {
 
 }shadow;
 
+const int SHADOW_RESOLUTION = 1024;
+
 static void createShadowPass()
 {
 	//Shadow Framebuffer
@@ -69,16 +73,18 @@ static void createShadowPass()
 	//Bind to shadow map
 	glBindTexture(GL_TEXTURE_2D, shadow.map);
 	//Initialize shadow map texture
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, 1024, 1024, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, SHADOW_RESOLUTION, SHADOW_RESOLUTION, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 	//Change buffer texture's filtering mode
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	//Change buffer texture's compare function
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
-	//Change buffer texture's compare function
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_EQUAL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+	//Change buffer texture's wrapping mode
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	float borderColor[] = { 1.0f,1.0f,1.0f,1.0f };
+	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+	//Change buffer texture's compare mode
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
 
 	//Attach depth buffer to FBO
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadow.map, 0);
@@ -96,9 +102,7 @@ static void createShadowPass()
 }
 
 //Light
-auto light_pos = glm::vec3(0, 10, 0);
-auto light_dir = glm::lookAt(light_pos, glm::vec3(0), glm::vec3(0, 1, 0));
-auto light_proj = glm::ortho(-5.0f, 5.0f, -5.0f, 5.0f, 0.0f, 100.0f);
+float lightPosArray[3] = { 2.0f, 4.0f, 1.0f };
 
 //Debug
 struct {
@@ -219,9 +223,6 @@ int main() {
 	camera.aspectRatio = (float)screenSize.x / screenSize.y;
 	camera.fov = 60.0f; //Field of view in degrees
 
-	shadowEye.position = glm::vec3(0.0f, 0.0f, 5.0f);
-	shadowEye.target = glm::vec3(0.0f, 0.0f, 0.0f);
-	shadowEye.orthographic = true;
 
 	//===Screen Quad Rendering===
 	//Set up VAO and VBO for screen quad
@@ -265,6 +266,10 @@ int main() {
 
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 
+	//===Ground===
+	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
+	planeTransform.position.y -= 2;
+
 	createDebugPass();
 	createShadowPass();
 
@@ -276,20 +281,37 @@ int main() {
 		deltaTime = time - prevFrameTime;
 		prevFrameTime = time;
 
+		float near_plane = 1.0f, far_plane = 7.5f;
+		glm::mat4 lightProjection = glm::ortho(-4.0f, 4.0f, -4.0f, 4.0f, near_plane, far_plane);
+		glm::mat4 lightView = glm::lookAt(
+			glm::vec3(lightPosArray[0], lightPosArray[1], lightPosArray[2]),
+			glm::vec3(0),
+			glm::vec3(0, 1, 0)
+		);
+		glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+
 		//Enable depth testing
 		glEnable(GL_DEPTH_TEST);
 
 		cameraController.move(window, &camera, deltaTime);
 	  //=====SHADOW PASS=====
+		shadowShader.use();
+		
+		shadowShader.setMat4("_LightSpaceMatrix", lightSpaceMatrix);
+		
+
+		glViewport(0, 0, SHADOW_RESOLUTION, SHADOW_RESOLUTION);
 		glBindFramebuffer(GL_FRAMEBUFFER, shadow.fbo);
 		//Clear framebuffer
 		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		shadowShader.use();
+		//glCullFace(GL_FRONT);
 		shadowShader.setMat4("_Model", monkeyTransform.modelMatrix());
-		shadowShader.setMat4("_ViewProjection", camera.viewMatrix() * camera.projectionMatrix());
 		monkeyModel.draw();
-		//Unbind to draw to screen rather than buffer
+		//glCullFace(GL_BACK);
+		//shadowShader.setMat4("_Model", planeTransform.modelMatrix());
+		//planeMesh.draw();
+		//Unbind
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 
@@ -305,23 +327,32 @@ int main() {
 		glBindTextureUnit(0, marbleTexture); //glBindTextureUnit() is a new function to OpenGL 4.5
 		//Bind marble roughness map to texture unit 1
 		glBindTextureUnit(1, marbleRoughness);
+		//Bind shadow map to texture unit 2
+		glBindTextureUnit(2, shadow.map);
 
 		//Use lit shader
 		shader.use();
 
 		shader.setVec3("_CameraPos", camera.position);
 		shader.setVec3("_AmbientColor", BACKGROUND_COLOR/2.0f); //Ambient color is realtive to background color, making it feel natural
+		shader.setMat4("_LightSpaceProjection", lightSpaceMatrix);
+		shader.setVec3("_LightDirection", glm::normalize(-glm::vec3(lightPosArray[0], lightPosArray[1], lightPosArray[2])));
 
 		//Set up shader to draw monkey
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		shader.setInt("_MainTex", 0);
 		shader.setInt("_RoughnessTex", 1);
+		shader.setInt("_ShadowMap", 2);
 		shader.setFloat("_Material.Ka", material.Ka);
 		shader.setFloat("_Material.Kd", material.Kd);
 		shader.setFloat("_Material.Ks", material.Ks);
 		shader.setFloat("_Material.Shininess", material.Shininess);
 		monkeyModel.draw(); //Draw monkey model with current shader
+		
+		//Draw plane
+		shader.setMat4("_Model", planeTransform.modelMatrix());
+		planeMesh.draw();
 		
 	  //=====POST-RPOCESSING=====
 		int i = 0;
@@ -389,7 +420,7 @@ int main() {
 		debugShader.use();
 
 		glBindVertexArray(screenVAO);
-		//glViewport(screenSize.x - 150, 0, 150, 150);
+		glViewport(screenSize.x - 150, 0, 150, 150);
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, shadow.map);
 		debugShader.setInt("debug_image", 0);
@@ -412,6 +443,8 @@ void drawUI() {
 	if (ImGui::Button("Reset Camera"))
 		resetCamera(&camera, &cameraController);
 	
+	ImGui::DragFloat3("Light Position", lightPosArray, 0.05f);
+
 	if (ImGui::CollapsingHeader("Material")) {
 		ImGui::SliderFloat("Ambient Coefficient", &material.Ka, 0.0f, 2.0f);
 		ImGui::SliderFloat("Diffuse Coefficient", &material.Kd, 0.0f, 2.0f);

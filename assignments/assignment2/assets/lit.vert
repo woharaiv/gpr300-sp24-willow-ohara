@@ -6,9 +6,11 @@ layout(location = 2) in vec2 vTexCoord; //Texture coordinate
 
 uniform mat4 _Model; //Model -> World matrix 
 uniform mat4 _ViewProjection; //View -> Projection matrix 
+uniform mat4 _LightSpaceProjection; //View -> Light matrix
 
 out Surface{
 	vec3 WorldPos;
+	vec4 LightSpacePos;
 	vec3 WorldNormal;
 	vec2 TexCoord;
 }vs_out;
@@ -21,6 +23,8 @@ void main()
 	vs_out.WorldNormal = transpose(inverse(mat3(_Model))) * vNormal;
 	vs_out.TexCoord = vTexCoord;
 
+	//Store position in light space
+	vs_out.LightSpacePos = _LightSpaceProjection * vec4(vPos, 1.0);
 	//Transform to clip space
 	gl_Position = _ViewProjection * _Model * vec4(vPos, 1.0); 
 }
