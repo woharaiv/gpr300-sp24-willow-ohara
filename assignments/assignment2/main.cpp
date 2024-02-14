@@ -56,7 +56,8 @@ struct {
 	GLuint fbo;
 	GLuint map;
 	GLuint vao;
-
+	float minBias = 0.005;
+	float maxBias = 0.03;
 }shadow;
 
 const int SHADOW_RESOLUTION = 1024;
@@ -344,6 +345,8 @@ int main() {
 		shader.setInt("_MainTex", 0);
 		shader.setInt("_RoughnessTex", 1);
 		shader.setInt("_ShadowMap", 2);
+		shader.setFloat("_minShadowBias", shadow.minBias);
+		shader.setFloat("_maxShadowBias", shadow.maxBias);
 		shader.setFloat("_Material.Ka", material.Ka);
 		shader.setFloat("_Material.Kd", material.Kd);
 		shader.setFloat("_Material.Ks", material.Ks);
@@ -482,7 +485,10 @@ void drawUI() {
 			numSelectedPostProcessingEffects++;
 		}
 	}
-	
+	ImGui::Text("Slope-Scale Biasing");
+	ImGui::DragFloat("Min", &shadow.minBias, 0.0005f);
+	ImGui::DragFloat("Max", &shadow.maxBias, 0.0005f);
+
 	ImGui::Text("Rotate");
 	ImGui::SameLine();
 	// Arrow buttons with Repeater

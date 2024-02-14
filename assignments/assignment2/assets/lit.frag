@@ -12,6 +12,7 @@ uniform sampler2D _MainTex;
 uniform sampler2D _RoughnessTex;
 
 uniform sampler2D _ShadowMap;
+uniform float _minShadowBias, _maxShadowBias;
 
 uniform vec3 _CameraPos;
 
@@ -40,16 +41,25 @@ float ShadowCalc(vec4 lightSpacePos)
 	//What is our actual depth?
 	float fragmentDepth = projCoords.z;
 
-	float bias = max(0.005 * (1.0 - dot(fs_in.WorldNormal, _LightDirection)), 0.005);
+	float bias = max(_maxShadowBias * (1.0 - dot(fs_in.WorldNormal, _LightDirection)), _minShadowBias);
 	//Return 0 if our projection is outside of the depth map
 	if (projCoords.z > 1.0)
 	{ 
 		return 0.0;
 	}
 
-	//If closestDepth is greater, then something is closer to the light than this fragment, so this fragment is in shadow.
-	float inShadow = fragmentDepth - bias > closestDepth ? 1.0 : 0.0;
-	return inShadow;
+	float shadow = 0.0;
+	vec2 texelSize = 1.0 / textureSize(_ShadowMap, 0);
+	for(int x = -2; x <= 2; ++x)
+	{
+		for(int y = -2; y <= 2; ++y)
+		{
+			float pcfDepth = texture(_ShadowMap, projCoords.xy + vec2(x, y) * texelSize).r; 
+			shadow += fragmentDepth - bias > closestDepth ? 1.0 : 0.0;        
+		}    
+	}
+	shadow /= 25.0;
+	return shadow;
 }
 
 void main()
