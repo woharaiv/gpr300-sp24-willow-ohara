@@ -23,6 +23,7 @@ ew::Camera camera;
 ew::CameraController cameraController;
 
 const glm::vec3 BACKGROUND_COLOR = glm::vec3(0.6f, 0.8f, 0.92f);
+glm::vec3 lightPos = glm::vec3(0.0f, 5.0f, 0.0f);
 
 struct Material {
 	float Ka = 1.0;
@@ -31,6 +32,10 @@ struct Material {
 	float Shininess = 128;
 }material;
 
+struct PBRMaterial {
+	GLuint colorMap, ambientOcclusionMap, roughnessMap, specularMap, metallicMap;
+} greenShell;
+
 
 //Global state
 int screenWidth = 1080;
@@ -38,7 +43,7 @@ int screenHeight = 720;
 float prevFrameTime;
 float deltaTime;
 
-	ew::Transform planeTransform;
+ew::Transform planeTransform;
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);
@@ -53,12 +58,18 @@ int main() {
 	camera.aspectRatio = (float)screenWidth / screenHeight;
 	camera.fov = 60.0f; //Field of view in degrees
 	
-	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
+	ew::Shader shader = ew::Shader("assets/pbr.vert", "assets/pbr.frag");
 
 	GLuint marbleTexture = ew::loadTexture("assets/marble_color.jpg");
 	GLuint marbleRoughness = ew::loadTexture("assets/marble_roughness.jpg");
 
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
+	ew::Model greenShellModel = ew::Model("assets/greenshell/greenshell.obj");
+	greenShell.colorMap = ew::loadTexture("assets/greenshell/greenshell_col.png");
+	greenShell.metallicMap = ew::loadTexture("assets/greenshell/greenshell_mtl.png");
+	greenShell.roughnessMap = ew::loadTexture("assets/greenshell/greenshell_rgh.png");
+	greenShell.ambientOcclusionMap = ew::loadTexture("assets/greenshell/greenshell_ao.png");
+	greenShell.specularMap = ew::loadTexture("assets/greenshell/greenshell_spc.png");
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -74,26 +85,28 @@ int main() {
 		cameraController.move(window, &camera, deltaTime);
 
 		//Bind marble texture to texture unit 0
-		glBindTextureUnit(0, marbleTexture); //glBindTextureUnit() is a new function to OpenGL 4.5
-		//Bind marble roughness map to texture unit 1
-		glBindTextureUnit(1, marbleRoughness);
-
+		glBindTextureUnit(0, greenShell.colorMap); //glBindTextureUnit() is a new function to OpenGL 4.5
+		glBindTextureUnit(1, greenShell.metallicMap);
+		glBindTextureUnit(2, greenShell.roughnessMap);
+		glBindTextureUnit(3, greenShell.ambientOcclusionMap);
+		glBindTextureUnit(4, greenShell.specularMap);
+		
 		//Use lit shader
 		shader.use();
 
 		shader.setVec3("_CameraPos", camera.position);
-		shader.setVec3("_AmbientColor", BACKGROUND_COLOR/2.0f); //Ambient color is realtive to background color, making it feel natural
+		shader.setVec3("_LightPos", lightPos);
+		shader.setVec3("_AmbientLight", BACKGROUND_COLOR/2.0f); //Ambient color is realtive to background color, making it feel natural
 
 		//Set up shader to draw monkey
 		shader.setMat4("_Model", planeTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
-		shader.setInt("_MainTex", 0);
-		shader.setInt("_RoughnessTex", 1);
-		shader.setFloat("_Material.Ka", material.Ka);
-		shader.setFloat("_Material.Kd", material.Kd);
-		shader.setFloat("_Material.Ks", material.Ks);
-		shader.setFloat("_Material.Shininess", material.Shininess);
-		monkeyModel.draw(); //Draw monkey model with current shader
+		shader.setInt("_Material.albedo", 0);
+		shader.setInt("_Material.metallic", 1);
+		shader.setInt("_Material.roughness", 2);
+		shader.setInt("_Material.occlusion", 3);
+		shader.setInt("_Material.specular", 4);
+		greenShellModel.draw(); //Draw monkey model with current shader
 
 		drawUI();
 

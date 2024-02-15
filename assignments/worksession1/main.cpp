@@ -8,6 +8,7 @@
 #include <ew/transform.h>
 #include <ew/cameraController.h>
 #include <ew/texture.h>
+#include <ew/procGen.h>
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -38,7 +39,16 @@ int screenHeight = 720;
 float prevFrameTime;
 float deltaTime;
 
-	ew::Transform planeTransform;
+ew::Transform planeTransform;
+
+struct Water {
+	glm::vec3 color = glm::vec3(0.0f, 0.31f, 0.85f);
+	float sample1Mod = 0.9f;
+	float sample2Mod = 0.03f;
+	float scale = 100;
+	float waveStrength = 1.0f;
+	float waveScale = 1.0f;
+} water;
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);
@@ -54,11 +64,12 @@ int main() {
 	camera.fov = 60.0f; //Field of view in degrees
 	
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
+	ew::Shader waterShader = ew::Shader("assets/water.vert", "assets/water.frag");
 
-	GLuint marbleTexture = ew::loadTexture("assets/marble_color.jpg");
-	GLuint marbleRoughness = ew::loadTexture("assets/marble_roughness.jpg");
+	GLuint waterTexture = ew::loadTexture("assets/water.png");
 
-	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
+	ew::Mesh waterPlane = ew::createPlane(128, 128, 64);
+	planeTransform.position.y = -1;
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -73,27 +84,26 @@ int main() {
 
 		cameraController.move(window, &camera, deltaTime);
 
-		//Bind marble texture to texture unit 0
-		glBindTextureUnit(0, marbleTexture); //glBindTextureUnit() is a new function to OpenGL 4.5
-		//Bind marble roughness map to texture unit 1
-		glBindTextureUnit(1, marbleRoughness);
+		//Bind water texture to texture unit 0
+		glBindTextureUnit(0, waterTexture); //glBindTextureUnit() is a new function to OpenGL 4.5
 
 		//Use lit shader
-		shader.use();
+		waterShader.use();
 
-		shader.setVec3("_CameraPos", camera.position);
-		shader.setVec3("_AmbientColor", BACKGROUND_COLOR/2.0f); //Ambient color is realtive to background color, making it feel natural
+		waterShader.setVec3("_CameraPos", camera.position);
+		waterShader.setVec3("_AmbientColor", BACKGROUND_COLOR/2.0f); //Ambient color is realtive to background color, making it feel natural
 
-		//Set up shader to draw monkey
-		shader.setMat4("_Model", planeTransform.modelMatrix());
-		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
-		shader.setInt("_MainTex", 0);
-		shader.setInt("_RoughnessTex", 1);
-		shader.setFloat("_Material.Ka", material.Ka);
-		shader.setFloat("_Material.Kd", material.Kd);
-		shader.setFloat("_Material.Ks", material.Ks);
-		shader.setFloat("_Material.Shininess", material.Shininess);
-		monkeyModel.draw(); //Draw monkey model with current shader
+		//Set up shader to draw plane
+		waterShader.setMat4("_Model", planeTransform.modelMatrix());
+		waterShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+		waterShader.setInt("_MainTex", 0);
+
+		waterShader.setFloat("_Time", time);
+		waterShader.setFloat("_WaveStrength", water.waveStrength);
+		waterShader.setFloat("_WaveScale", water.waveScale);
+		waterShader.setVec3("_WaterColor", water.color);
+		
+		waterPlane.draw(); //Draw plane with current shader
 
 		drawUI();
 
@@ -110,6 +120,8 @@ void drawUI() {
 	ImGui::Begin("Settings");
 	if (ImGui::Button("Reset Camera"))
 		resetCamera(&camera, &cameraController);
+	ImGui::DragFloat("Wave Scale", &water.waveScale, 0.01f, 0.0f);
+	ImGui::DragFloat("Wave Strength", &water.waveStrength, 0.01f, 0.0f);
 	if (ImGui::CollapsingHeader("Material")) {
 		ImGui::SliderFloat("Ambient Coefficient", &material.Ka, 0.0f, 2.0f);
 		ImGui::SliderFloat("Diffuse Coefficient", &material.Kd, 0.0f, 2.0f);
