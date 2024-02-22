@@ -39,7 +39,9 @@ int screenHeight = 720;
 float prevFrameTime;
 float deltaTime;
 
-	ew::Transform planeTransform;
+ew::Transform planeTransform;
+
+float heightScale = 1.0f;
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);
@@ -57,9 +59,12 @@ int main() {
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
 
 	GLuint marbleTexture = ew::loadTexture("assets/marble_color.jpg");
-	GLuint marbleRoughness = ew::loadTexture("assets/marble_roughness.jpg");
+	GLuint heightMap = ew::loadTexture("assets/heightmap.png");
 
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
+	ew::Mesh plane = ew::createPlane(64, 64, 64);
+
+	planeTransform.position.y -= 1;
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -75,9 +80,11 @@ int main() {
 		cameraController.move(window, &camera, deltaTime);
 
 		//Bind marble texture to texture unit 0
-		glBindTextureUnit(0, marbleTexture); //glBindTextureUnit() is a new function to OpenGL 4.5
-		//Bind marble roughness map to texture unit 1
-		glBindTextureUnit(1, marbleRoughness);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, marbleTexture);
+		//Bind height map to texture unit 1
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, heightMap);
 
 		//Use lit shader
 		shader.use();
@@ -85,16 +92,17 @@ int main() {
 		shader.setVec3("_CameraPos", camera.position);
 		shader.setVec3("_AmbientColor", BACKGROUND_COLOR/2.0f); //Ambient color is realtive to background color, making it feel natural
 
-		//Set up shader to draw monkey
+		//Set up shader to draw
 		shader.setMat4("_Model", planeTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		shader.setInt("_MainTex", 0);
-		shader.setInt("_RoughnessTex", 1);
+		shader.setInt("_HeightMap", 1);
 		shader.setFloat("_Material.Ka", material.Ka);
 		shader.setFloat("_Material.Kd", material.Kd);
 		shader.setFloat("_Material.Ks", material.Ks);
 		shader.setFloat("_Material.Shininess", material.Shininess);
-		monkeyModel.draw(); //Draw monkey model with current shader
+		shader.setFloat("_Scale", heightScale);
+		plane.draw(); 
 
 		drawUI();
 
@@ -117,7 +125,7 @@ void drawUI() {
 		ImGui::SliderFloat("Specular Coefficient", &material.Ks, 0.0f, 2.0f);
 		ImGui::SliderFloat("Shininess", &material.Shininess, 2.0f, 1024.0f);
 	}
-	
+	ImGui::DragFloat("Scale", &heightScale);
 	ImGui::Text("Rotate");
 	ImGui::SameLine();
 	// Arrow buttons with Repeater

@@ -27,5 +27,8 @@ add_subdirectory(core)
 add_subdirectory(assignments/assignment0)
 add_subdirectory(assignments/assignment1)
 add_subdirectory(assignments/assignment2)
+add_subdirectory(assignments/assignment3)
+
 add_subdirectory(assignments/worksession1)
 add_subdirectory(assignments/worksession2)
+add_subdirectory(assignments/worksession3)

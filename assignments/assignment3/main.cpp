@@ -19,6 +19,14 @@ void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 GLFWwindow* initWindow(const char* title, int width, int height);
 void drawUI();
 void resetCamera(ew::Camera* camera, ew::CameraController* controller);
+void drawAtPos(ew::Model*, glm::vec3, ew::Shader*);
+void drawAtPos(ew::Mesh*, glm::vec3, ew::Shader*);
+
+//Global state
+int screenWidth = 1080;
+int screenHeight = 720;
+float prevFrameTime;
+float deltaTime;
 
 ew::Camera camera;
 ew::CameraController cameraController;
@@ -32,14 +40,67 @@ struct Material {
 	float Shininess = 128;
 }material;
 
+struct {
+	GLuint fbo;
+	GLuint world_position;
+	GLuint world_normal;
+	GLuint albedo;
+	GLuint depth;
+} deferred;
 
-//Global state
-int screenWidth = 1080;
-int screenHeight = 720;
-float prevFrameTime;
-float deltaTime;
+void create_deferred_pass(void)
+{
+	//create framebuffer
+	glCreateFramebuffers(1, &deferred.fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, deferred.fbo);
 
-	ew::Transform planeTransform;
+	//generate world_position
+	glGenTextures(1, &deferred.world_position);
+	glBindTexture(GL_TEXTURE_2D, deferred.world_position);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, screenWidth, screenHeight, 0, GL_RGB, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	//generate world_normal
+	glGenTextures(1, &deferred.world_normal);
+	glBindTexture(GL_TEXTURE_2D, deferred.world_normal);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, screenWidth, screenHeight, 0, GL_RGB, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	//generate albedo
+	glGenTextures(1, &deferred.albedo);
+	glBindTexture(GL_TEXTURE_2D, deferred.albedo);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, screenWidth, screenHeight, 0, GL_RGB, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	//generate depth
+	glGenTextures(1, &deferred.depth);
+	glBindTexture(GL_TEXTURE_2D, deferred.depth);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, screenWidth, screenHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	
+	//Attach buffers to the FBO
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, deferred.world_position, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, deferred.world_normal, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, deferred.albedo, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, deferred.depth, 0);
+	
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+	{
+		printf("ERROR::FRAMEBUFFER:: Framebuffer is not complete!\n");
+	}
+
+	unsigned int buffers[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
+	glDrawBuffers(3, buffers);
+
+	//Unbind the framebuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+ew::Transform planeTransform;
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);
@@ -54,12 +115,17 @@ int main() {
 	camera.aspectRatio = (float)screenWidth / screenHeight;
 	camera.fov = 60.0f; //Field of view in degrees
 	
-	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
+	ew::Shader shader = ew::Shader("assets/geometryPass.vert", "assets/geometryPass.frag");
 
 	GLuint marbleTexture = ew::loadTexture("assets/marble_color.jpg");
 	GLuint marbleRoughness = ew::loadTexture("assets/marble_roughness.jpg");
 
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
+
+	ew::Mesh planeMesh = ew::createPlane(64, 64, 8);
+	planeTransform.position.y = -2;
+
+	create_deferred_pass();
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -68,7 +134,9 @@ int main() {
 		deltaTime = time - prevFrameTime;
 		prevFrameTime = time;
 
+
 		//RENDER
+		glBindFramebuffer(GL_FRAMEBUFFER, deferred.fbo);
 		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -76,31 +144,46 @@ int main() {
 
 		//Bind marble texture to texture unit 0
 		glBindTextureUnit(0, marbleTexture); //glBindTextureUnit() is a new function to OpenGL 4.5
-		//Bind marble roughness map to texture unit 1
-		glBindTextureUnit(1, marbleRoughness);
 
-		//Use lit shader
+		//Use deferred shader
 		shader.use();
 
-		shader.setVec3("_CameraPos", camera.position);
-		shader.setVec3("_AmbientColor", BACKGROUND_COLOR/2.0f); //Ambient color is realtive to background color, making it feel natural
-
 		//Set up shader to draw monkey
-		shader.setMat4("_Model", planeTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		shader.setInt("_MainTex", 0);
-		shader.setInt("_RoughnessTex", 1);
-		shader.setFloat("_Material.Ka", material.Ka);
-		shader.setFloat("_Material.Kd", material.Kd);
-		shader.setFloat("_Material.Ks", material.Ks);
-		shader.setFloat("_Material.Shininess", material.Shininess);
-		monkeyModel.draw(); //Draw monkey model with current shader
+		for (int i = 0; i < 10; i++)
+		{
+			for (int j = 0; j < 10; j++)
+			{
+				drawAtPos(&monkeyModel, glm::vec3(i*5, 0, j*-5), &shader);
+			}
+		}
+		drawAtPos(&planeMesh, glm::vec3(20, -2, -20), &shader);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		drawUI();
 
 		glfwSwapBuffers(window);
 	}
 	printf("Shutting down...");
+}
+
+void drawAtPos(ew::Model* model, glm::vec3 position, ew::Shader* shader)
+{
+	ew::Transform transform;
+	transform.position = position;
+	shader->setMat4("_Model", transform.modelMatrix());
+	model->draw();
+}
+void drawAtPos(ew::Mesh* mesh, glm::vec3 position, ew::Shader* shader)
+{
+	ew::Transform transform;
+	transform.position = position;
+	shader->setMat4("_Model", transform.modelMatrix());
+	mesh->draw();
 }
 
 void drawUI() {
@@ -130,6 +213,21 @@ void drawUI() {
 		planeTransform.rotation = glm::rotate(planeTransform.rotation, 5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
 	ImGui::PopButtonRepeat();
 	ImGui::Separator();
+	ImGui::End();
+
+	ImGui::Begin("Maps");
+	ImVec2 windowSize = ImGui::GetWindowSize();
+	windowSize.x /= 2;
+	windowSize.y = windowSize.x;
+
+	ImGui::Image((ImTextureID)deferred.world_position, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+	ImGui::SameLine();
+	ImGui::Image((ImTextureID)deferred.world_normal, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+	
+	ImGui::Image((ImTextureID)deferred.albedo, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+	ImGui::SameLine();
+	ImGui::Image((ImTextureID)deferred.depth, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+	
 	ImGui::End();
 
 	ImGui::Render();
