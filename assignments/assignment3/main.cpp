@@ -34,9 +34,9 @@ ew::CameraController cameraController;
 const glm::vec3 BACKGROUND_COLOR = glm::vec3(0.6f, 0.8f, 0.92f);
 
 struct Material {
-	float Ka = 1.0;
-	float Kd = 0.5;
-	float Ks = 0.5;
+	float Ka = 0;
+	float Kd = 1;
+	float Ks = 1;
 	float Shininess = 128;
 }material;
 
@@ -47,6 +47,35 @@ struct {
 	GLuint albedo;
 	GLuint depth;
 } deferred;
+
+struct {
+	GLuint vao;
+	GLuint vbo;
+}display;
+
+struct PointLight {
+	glm::vec3 position;
+	float radius;
+	glm::vec4 color;
+};
+const int MAX_POINT_LIGHTS = 256;
+PointLight pointLights[MAX_POINT_LIGHTS];
+void initialize_point_lights()
+{
+	float hoirzontalOffset = 50 / (sqrt(MAX_POINT_LIGHTS) - 1);
+	int i = 0;
+	srand(glfwGetTime() * 1000);
+	for (int x = -1; x < sqrt(MAX_POINT_LIGHTS) - 1; x++)
+	{
+		for (int z = -1; z < sqrt(MAX_POINT_LIGHTS) - 1; z++)
+		{
+			pointLights[i].position = glm::vec3(hoirzontalOffset * x, -1, hoirzontalOffset * -z);
+			pointLights[i].radius = (rand() % 46 + 5) / 10.0f; //Random Radius between 0.5 and 5
+			pointLights[i].color = glm::vec4((rand() % 100 + 1) / 100.0f, (rand() % 100 + 1) / 100.0f, (rand() % 100 + 1) / 100.0f, 1.0f); //Random color
+			i++;
+		}
+	}
+}
 
 void create_deferred_pass(void)
 {
@@ -100,6 +129,37 @@ void create_deferred_pass(void)
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+void create_display_pass()
+{
+	float quad[] = {
+		//-X- -Y-  -U- -V- 
+		  //Tri 1
+		  -1,  1,   0,  1,
+		  -1, -1,   0,  0,
+		   1,  1,   1,  1,
+
+		   //Tri 2
+			1, -1,   1,  0,
+			1,  1,   1,  1,
+		   -1, -1,   0,  0,
+	};
+	//Set up VAO and VBO for screen quad
+	glGenVertexArrays(1, &display.vao);
+	glGenBuffers(1, &display.vbo);
+
+	glBindVertexArray(display.vao);
+	glBindBuffer(GL_ARRAY_BUFFER, display.vbo);
+
+	glBufferData(GL_ARRAY_BUFFER, sizeof(quad), &quad, GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+
+	glBindVertexArray(0);
+}
+
 ew::Transform planeTransform;
 
 int main() {
@@ -116,16 +176,22 @@ int main() {
 	camera.fov = 60.0f; //Field of view in degrees
 	
 	ew::Shader shader = ew::Shader("assets/geometryPass.vert", "assets/geometryPass.frag");
+	ew::Shader display_shader = ew::Shader("assets/lightingPass.vert", "assets/lightingPass.frag");
+	ew::Shader light_orb = ew::Shader("assets/lightOrb.vert", "assets/lightOrb.frag");
 
 	GLuint marbleTexture = ew::loadTexture("assets/marble_color.jpg");
 	GLuint marbleRoughness = ew::loadTexture("assets/marble_roughness.jpg");
 
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
-
 	ew::Mesh planeMesh = ew::createPlane(64, 64, 8);
 	planeTransform.position.y = -2;
 
+	ew::Mesh lightOrbMesh = ew::createSphere(1.0f, 8);
+
 	create_deferred_pass();
+	create_display_pass();
+
+	initialize_point_lights();
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -160,9 +226,63 @@ int main() {
 		}
 		drawAtPos(&planeMesh, glm::vec3(20, -2, -20), &shader);
 
+		//===Lighting Pass===
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glBindVertexArray(display.vao);
+		glBindTextureUnit(0, deferred.world_position);
+		glBindTextureUnit(1, deferred.world_normal);
+		glBindTextureUnit(2, deferred.albedo);
+		glBindTextureUnit(3, deferred.depth);
+		
+		//Use plain shader for final draw
+		display_shader.use();
+		
+		//Maps from geometry pass
+		display_shader.setInt("gPosition", 0);
+		display_shader.setInt("gNormals", 1);
+		display_shader.setInt("gAlbedo", 2);
+		
+		//Lighting variables
+		display_shader.setVec3("viewPos", camera.position);
+		display_shader.setVec3("ambientColor", BACKGROUND_COLOR / 2.0f); //Ambient color is realtive to background color, making it feel natural
+
+		display_shader.setFloat("material.Ka", material.Ka);
+		display_shader.setFloat("material.Kd", material.Kd);
+		display_shader.setFloat("material.Ks", material.Ks);
+		display_shader.setFloat("material.Shininess", material.Shininess);
+		for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+		{
+			display_shader.setVec3(("pointLights[" + std::to_string(i) + "].position"), pointLights[i].position);
+			display_shader.setVec4(("pointLights[" + std::to_string(i) + "].color"), pointLights[i].color);
+			display_shader.setFloat(("pointLights[" + std::to_string(i) + "].radius"), pointLights[i].radius);
+		}
+
+		//Disable detph testing
+		glDisable(GL_DEPTH_TEST);
+		//Draw screen triangle
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+
+		//===Light Orbs===
+		glEnable(GL_DEPTH_TEST);
+		//Copy lighting pass depth buffer to the current fbo
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, deferred.fbo);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		glBlitFramebuffer(0, 0, screenWidth, screenHeight, 0, 0, screenWidth, screenHeight, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+
+		light_orb.use();
+		light_orb.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+		for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+		{
+			glm::mat4 m = glm::mat4(1.0f);
+			m = glm::translate(m, pointLights[i].position);
+			m = glm::scale(m, glm::vec3(0.2f));
+
+			light_orb.setMat4("_Model", m);
+			light_orb.setVec3("_Color", pointLights[i].color * (pointLights[i].radius / 4));
+			lightOrbMesh.draw();
+		}
 
 		drawUI();
 
@@ -192,6 +312,7 @@ void drawUI() {
 	ImGui::NewFrame();
 
 	ImGui::Begin("Settings");
+	ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS", ImGui::GetIO().DeltaTime * 1000, 1.0f / ImGui::GetIO().DeltaTime, 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 	if (ImGui::Button("Reset Camera"))
 		resetCamera(&camera, &cameraController);
 	if (ImGui::CollapsingHeader("Material")) {
@@ -201,18 +322,6 @@ void drawUI() {
 		ImGui::SliderFloat("Shininess", &material.Shininess, 2.0f, 1024.0f);
 	}
 	
-	ImGui::Text("Rotate");
-	ImGui::SameLine();
-	// Arrow buttons with Repeater
-	float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
-	ImGui::PushButtonRepeat(true);
-	if (ImGui::ArrowButton("##left", ImGuiDir_Left))
-		planeTransform.rotation = glm::rotate(planeTransform.rotation, -5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
-	ImGui::SameLine(0.0f, spacing);
-	if (ImGui::ArrowButton("##right", ImGuiDir_Right))
-		planeTransform.rotation = glm::rotate(planeTransform.rotation, 5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
-	ImGui::PopButtonRepeat();
-	ImGui::Separator();
 	ImGui::End();
 
 	ImGui::Begin("Maps");
