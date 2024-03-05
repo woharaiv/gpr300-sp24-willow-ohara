@@ -3,13 +3,16 @@
 uniform sampler2D gPosition;
 uniform sampler2D gNormals;
 uniform sampler2D gAlbedo;
+uniform sampler2D shadowMap;
+
+uniform mat4 _LightSpaceMatrix;
 
 in vec2 TexCoords;
 out vec4 FragColor;
 
 uniform vec3 viewPos;
 
-vec3 directionalLightPosition = vec3(20, 2, -20);
+uniform vec3 directionalLightPosition = vec3(20, 2, -20);
 uniform vec3 directionalLightColor = vec3(1.0); //Pure white
 
 uniform vec3 ambientColor = vec3(0.3,0.4,0.46);
@@ -54,6 +57,31 @@ float attenuate(float dist, float radius)
 	return i * i;
 }
 
+float calcShadow(vec4 fragPosLightSpace, vec3 normal)
+{
+    // perform perspective divide
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    // transform to [0,1] range
+    projCoords = projCoords * 0.5 + 0.5;
+    // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
+    float closestDepth = texture(shadowMap, projCoords.xy).r; 
+    // get depth of current fragment from light's perspective
+    float currentDepth = projCoords.z;
+	float bias = max(0.05 * (1.0 - dot(normal, vec3(0, -1, 0))), 0.005);  
+    float shadow = 0.0;
+	vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+	for(int x = -1; x <= 1; ++x)
+	{
+	    for(int y = -1; y <= 1; ++y)
+		{
+			float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r; 
+			shadow += currentDepth - bias > pcfDepth ? 0.0 : 1.0;        
+		}    
+	}
+	shadow /= 9.0;
+    return shadow;
+} 
+
 vec3 calcPointLight(PointLight light, vec3 position, vec3 normal, vec3 albedo)
 {
 	vec3 diff = light.position - position;
@@ -71,13 +99,14 @@ void main()
 	vec3 position = texture(gPosition, TexCoords).xyz;
 	vec3 normal = texture(gNormals, TexCoords).xyz;
 	vec3 albedo = texture(gAlbedo, TexCoords).xyz;
+	vec3 shadow = texture(shadowMap, TexCoords).xyz;
 	
 	vec3 light_color = vec3(0);
 	light_color += ambientColor;
+	light_color += (calculateLighting(directionalLightPosition, directionalLightColor, position, normal, albedo)) * calcShadow(_LightSpaceMatrix * vec4(position, 1.0), normal);
 	for(int i = 0; i < MAX_POINT_LIGHTS; i++)
 	{
 		light_color += calcPointLight(pointLights[i], position, normal, albedo);
 	}
-
 	FragColor = vec4(albedo * light_color, 1.0);
 }

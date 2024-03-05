@@ -160,6 +160,60 @@ void create_display_pass()
 	glBindVertexArray(0);
 }
 
+//Shadow struct
+struct {
+	GLuint rbo;
+	GLuint fbo;
+	GLuint map;
+	GLuint vao;
+	float minBias = 0.005;
+	float maxBias = 0.03;
+}shadow;
+
+float main_light_pos[3] = { 25.01f, 2.5f, -25.01f };
+
+const int SHADOW_RESOLUTION = 2048;
+
+static void create_shadow_pass()
+{
+	//Shadow Framebuffer
+	glGenFramebuffers(1, &shadow.fbo);
+	//Shadow map
+	glGenTextures(1, &shadow.map);
+
+	//Bind to FBO
+	glBindFramebuffer(GL_FRAMEBUFFER, shadow.fbo);
+	//Bind to shadow map
+	glBindTexture(GL_TEXTURE_2D, shadow.map);
+	//Initialize shadow map texture
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, SHADOW_RESOLUTION, SHADOW_RESOLUTION, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	//Change buffer texture's filtering mode
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	//Change buffer texture's wrapping mode
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	float borderColor[] = { 1.0f,1.0f,1.0f,1.0f };
+	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+	//Change buffer texture's compare mode
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+
+	//Attach depth buffer to FBO
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadow.map, 0);
+	//Tell glCheckFramebufferStatus that we don't need a color buffer here
+	glDrawBuffer(GL_NONE);
+	glReadBuffer(GL_NONE);
+
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+	{
+		printf("ERROR::FRAMEBUFFER:: Framebuffer is not complete!\n");
+	}
+
+	//Unbind the framebuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
 ew::Transform planeTransform;
 
 int main() {
@@ -176,6 +230,7 @@ int main() {
 	camera.fov = 60.0f; //Field of view in degrees
 	
 	ew::Shader shader = ew::Shader("assets/geometryPass.vert", "assets/geometryPass.frag");
+	ew::Shader shadow_shader = ew::Shader("assets/shadow.vert", "assets/shadow.frag");
 	ew::Shader display_shader = ew::Shader("assets/lightingPass.vert", "assets/lightingPass.frag");
 	ew::Shader light_orb = ew::Shader("assets/lightOrb.vert", "assets/lightOrb.frag");
 
@@ -187,9 +242,11 @@ int main() {
 	planeTransform.position.y = -2;
 
 	ew::Mesh lightOrbMesh = ew::createSphere(1.0f, 8);
+	ew::Mesh directionalLightMesh = ew::createCylinder(0.75, 2, 8);
 
 	create_deferred_pass();
 	create_display_pass();
+	create_shadow_pass();
 
 	initialize_point_lights();
 
@@ -200,13 +257,51 @@ int main() {
 		deltaTime = time - prevFrameTime;
 		prevFrameTime = time;
 
+		float near_plane = 1.0f, far_plane = 7.5f;
+		glm::mat4 lightProjection = glm::ortho(-40.0f, 40.0f, -40.0f, 40.0f, near_plane, far_plane);
+		glm::mat4 lightView = glm::lookAt(
+			glm::vec3(main_light_pos[0], main_light_pos[1], main_light_pos[2]),
+			glm::vec3(25, 0, -25),
+			glm::vec3(0, 1, 0)
+		);
+		glm::mat4 lightSpaceMatrix = lightProjection * lightView;
 
-		//RENDER
+		//Enable depth testing
+		glEnable(GL_DEPTH_TEST);
+
+		cameraController.move(window, &camera, deltaTime);
+		
+		//=====SHADOW PASS=====
+		shadow_shader.use();
+
+		shadow_shader.setMat4("_LightSpaceMatrix", lightSpaceMatrix);
+
+		glViewport(0, 0, SHADOW_RESOLUTION, SHADOW_RESOLUTION);
+		glBindFramebuffer(GL_FRAMEBUFFER, shadow.fbo);
+		//Clear framebuffer
+		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glCullFace(GL_FRONT);
+		shadow_shader.setMat4("_Model", planeTransform.modelMatrix());
+		for (int i = 0; i < 10; i++)
+		{
+			for (int j = 0; j < 10; j++)
+			{
+				drawAtPos(&monkeyModel, glm::vec3(i * 5, 0, j * -5), &shadow_shader);
+			}
+		}
+		glCullFace(GL_BACK);
+		//shadowShader.setMat4("_Model", planeTransform.modelMatrix());
+		//planeMesh.draw();
+		//Unbind
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		//Reset viewport
+		glViewport(0, 0, screenWidth, screenHeight);
+
+		//===Geometry Pass===
 		glBindFramebuffer(GL_FRAMEBUFFER, deferred.fbo);
 		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		cameraController.move(window, &camera, deltaTime);
 
 		//Bind marble texture to texture unit 0
 		glBindTextureUnit(0, marbleTexture); //glBindTextureUnit() is a new function to OpenGL 4.5
@@ -226,6 +321,8 @@ int main() {
 		}
 		drawAtPos(&planeMesh, glm::vec3(20, -2, -20), &shader);
 
+
+
 		//===Lighting Pass===
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
@@ -234,7 +331,7 @@ int main() {
 		glBindTextureUnit(0, deferred.world_position);
 		glBindTextureUnit(1, deferred.world_normal);
 		glBindTextureUnit(2, deferred.albedo);
-		glBindTextureUnit(3, deferred.depth);
+		glBindTextureUnit(3, shadow.map);
 		
 		//Use plain shader for final draw
 		display_shader.use();
@@ -243,10 +340,13 @@ int main() {
 		display_shader.setInt("gPosition", 0);
 		display_shader.setInt("gNormals", 1);
 		display_shader.setInt("gAlbedo", 2);
+		display_shader.setInt("shadowMap", 3);
 		
 		//Lighting variables
 		display_shader.setVec3("viewPos", camera.position);
 		display_shader.setVec3("ambientColor", BACKGROUND_COLOR / 2.0f); //Ambient color is realtive to background color, making it feel natural
+		display_shader.setVec3("directionalLightPosition", glm::vec3(main_light_pos[0], main_light_pos[1], main_light_pos[2]));
+		display_shader.setMat4("_LightSpaceMatrix", lightSpaceMatrix);
 
 		display_shader.setFloat("material.Ka", material.Ka);
 		display_shader.setFloat("material.Kd", material.Kd);
@@ -283,6 +383,13 @@ int main() {
 			light_orb.setVec3("_Color", pointLights[i].color * (pointLights[i].radius / 4));
 			lightOrbMesh.draw();
 		}
+		glm::mat4 m = glm::mat4(1.0f);
+		m = glm::translate(m, glm::vec3(main_light_pos[0], main_light_pos[1] + 15, main_light_pos[2]));
+		m = glm::scale(m, glm::vec3(2.5f));
+
+		light_orb.setMat4("_Model", m);
+		light_orb.setVec3("_Color", glm::vec3(0.0));
+		directionalLightMesh.draw();
 
 		drawUI();
 
@@ -335,7 +442,7 @@ void drawUI() {
 	
 	ImGui::Image((ImTextureID)deferred.albedo, windowSize, ImVec2(0, 1), ImVec2(1, 0));
 	ImGui::SameLine();
-	ImGui::Image((ImTextureID)deferred.depth, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+	ImGui::Image((ImTextureID)shadow.map, windowSize, ImVec2(0, 1), ImVec2(1, 0));
 	
 	ImGui::End();
 

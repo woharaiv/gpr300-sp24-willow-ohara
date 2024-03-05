@@ -41,7 +41,6 @@ float prevFrameTime;
 float deltaTime;
 
 ew::Transform planeTransform;
-ew::Transform planeTransform;
 
 //Framebuffer
 unsigned int pingpongFBO[2];
