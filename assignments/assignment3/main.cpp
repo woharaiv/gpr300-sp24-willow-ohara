@@ -214,7 +214,7 @@ static void create_shadow_pass()
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-ew::Transform planeTransform;
+ew::Transform monkeyTransform;
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);
@@ -239,7 +239,7 @@ int main() {
 
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 	ew::Mesh planeMesh = ew::createPlane(64, 64, 8);
-	planeTransform.position.y = -2;
+	monkeyTransform.position.y = -2;
 
 	ew::Mesh lightOrbMesh = ew::createSphere(1.0f, 8);
 	ew::Mesh directionalLightMesh = ew::createCylinder(0.75, 2, 8);
@@ -282,7 +282,7 @@ int main() {
 		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glCullFace(GL_FRONT);
-		shadow_shader.setMat4("_Model", planeTransform.modelMatrix());
+		shadow_shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		for (int i = 0; i < 10; i++)
 		{
 			for (int j = 0; j < 10; j++)

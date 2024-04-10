@@ -40,6 +40,7 @@ glm::vec2 screenSize = { 1080, 720 }; //Converted this to a vec2 because a previ
 float prevFrameTime;
 float deltaTime;
 
+ew::Transform monkeyTransform;
 ew::Transform planeTransform;
 
 //Framebuffer
@@ -165,6 +166,7 @@ PostProcessingEffectSelection effectSelection[NUM_POSTPROCESSING_EFFECTS];
 float vignetteStrength = 1;
 float curvature = 5;
 
+bool frontFace = true;
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 2", screenSize.x, screenSize.y);
@@ -265,10 +267,10 @@ int main() {
 	GLuint marbleRoughness = ew::loadTexture("assets/marble_roughness.jpg");
 
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
+	monkeyTransform.position.y = 2;
 
 	//===Ground===
 	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
-	planeTransform.position.y -= 2;
 
 	createDebugPass();
 	createShadowPass();
@@ -294,30 +296,30 @@ int main() {
 		glEnable(GL_DEPTH_TEST);
 
 		cameraController.move(window, &camera, deltaTime);
-	  //=====SHADOW PASS=====
+	    
+		//=====SHADOW PASS=====
 		shadowShader.use();
 		
 		shadowShader.setMat4("_LightSpaceMatrix", lightSpaceMatrix);
 		
-
 		glViewport(0, 0, SHADOW_RESOLUTION, SHADOW_RESOLUTION);
 		glBindFramebuffer(GL_FRAMEBUFFER, shadow.fbo);
 		//Clear framebuffer
 		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		//glCullFace(GL_FRONT);
-		shadowShader.setMat4("_Model", planeTransform.modelMatrix());
+		if (frontFace) { glCullFace(GL_FRONT); }
+		shadowShader.setMat4("_Model", monkeyTransform.modelMatrix());
 		monkeyModel.draw();
-		//glCullFace(GL_BACK);
+		glCullFace(GL_BACK);
 		//shadowShader.setMat4("_Model", planeTransform.modelMatrix());
 		//planeMesh.draw();
 		//Unbind
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		//Reset viewport
+		glViewport(0, 0, screenSize.x, screenSize.y);
 
 
 	  //=====MAIN RENDER=====
-		
-		glViewport(0, 0, screenSize.x, screenSize.y);
 		//Bind color buffer
 		glBindFramebuffer(GL_FRAMEBUFFER, pingpongColorBuffer[0]);
 		
@@ -339,7 +341,7 @@ int main() {
 		shader.setVec3("_LightDirection", glm::normalize(-glm::vec3(lightPosArray[0], lightPosArray[1], lightPosArray[2])));
 
 		//Set up shader to draw monkey
-		shader.setMat4("_Model", planeTransform.modelMatrix());
+		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		shader.setInt("_MainTex", 0);
 		shader.setInt("_RoughnessTex", 1);
@@ -446,7 +448,7 @@ void drawUI() {
 		resetCamera(&camera, &cameraController);
 	
 	ImGui::DragFloat3("Light Position", lightPosArray, 0.05f);
-
+	ImGui::Checkbox("Front Face?", &frontFace);
 	if (ImGui::CollapsingHeader("Material")) {
 		ImGui::SliderFloat("Ambient Coefficient", &material.Ka, 0.0f, 2.0f);
 		ImGui::SliderFloat("Diffuse Coefficient", &material.Kd, 0.0f, 2.0f);
@@ -494,10 +496,10 @@ void drawUI() {
 	float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
 	ImGui::PushButtonRepeat(true);
 	if (ImGui::ArrowButton("##left", ImGuiDir_Left))
-		planeTransform.rotation = glm::rotate(planeTransform.rotation, -5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
+		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, -5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
 	ImGui::SameLine(0.0f, spacing);
 	if (ImGui::ArrowButton("##right", ImGuiDir_Right))
-		planeTransform.rotation = glm::rotate(planeTransform.rotation, 5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
+		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, 5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
 	ImGui::PopButtonRepeat();
 	ImGui::Separator();
 	ImGui::End();
