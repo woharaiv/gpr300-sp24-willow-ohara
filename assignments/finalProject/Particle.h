@@ -24,7 +24,7 @@ public:
 	glm::vec3 GetAcceleration();
 	glm::vec3 GetAccumulatedForces();
 	float GetInverseMass();
-
+	void SetVelocity(glm::vec3 newVelocity);
 	
 
 
