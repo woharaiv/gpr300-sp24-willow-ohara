@@ -39,7 +39,7 @@ int screenHeight = 720;
 float prevFrameTime;
 float deltaTime;
 
-ew::Transform planeTransform;
+ew::Transform monkeyTransform;
 
 float heightScale = 1.0f;
 
@@ -64,7 +64,7 @@ int main() {
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 	ew::Mesh plane = ew::createPlane(64, 64, 64);
 
-	planeTransform.position.y -= 1;
+	monkeyTransform.position.y -= 1;
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -93,7 +93,7 @@ int main() {
 		shader.setVec3("_AmbientColor", BACKGROUND_COLOR/2.0f); //Ambient color is realtive to background color, making it feel natural
 
 		//Set up shader to draw
-		shader.setMat4("_Model", planeTransform.modelMatrix());
+		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		shader.setInt("_MainTex", 0);
 		shader.setInt("_HeightMap", 1);
@@ -132,10 +132,10 @@ void drawUI() {
 	float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
 	ImGui::PushButtonRepeat(true);
 	if (ImGui::ArrowButton("##left", ImGuiDir_Left))
-		planeTransform.rotation = glm::rotate(planeTransform.rotation, -5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
+		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, -5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
 	ImGui::SameLine(0.0f, spacing);
 	if (ImGui::ArrowButton("##right", ImGuiDir_Right))
-		planeTransform.rotation = glm::rotate(planeTransform.rotation, 5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
+		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, 5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
 	ImGui::PopButtonRepeat();
 	ImGui::Separator();
 	ImGui::End();

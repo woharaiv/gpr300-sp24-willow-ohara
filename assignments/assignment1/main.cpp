@@ -37,7 +37,7 @@ glm::vec2 screenSize = { 1080, 720 }; //Converted this to a vec2 because a previ
 float prevFrameTime;
 float deltaTime;
 
-ew::Transform planeTransform;
+ew::Transform monkeyTransform;
 
 //Framebuffer
 unsigned int pingpongFBO[2];
@@ -205,7 +205,7 @@ int main() {
 		shader.setVec3("_AmbientColor", BACKGROUND_COLOR/2.0f); //Ambient color is realtive to background color, making it feel natural
 
 		//Set up shader to draw monkey
-		shader.setMat4("_Model", planeTransform.modelMatrix());
+		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		shader.setInt("_MainTex", 0);
 		shader.setInt("_RoughnessTex", 1);
@@ -335,10 +335,10 @@ void drawUI() {
 	float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
 	ImGui::PushButtonRepeat(true);
 	if (ImGui::ArrowButton("##left", ImGuiDir_Left))
-		planeTransform.rotation = glm::rotate(planeTransform.rotation, -5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
+		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, -5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
 	ImGui::SameLine(0.0f, spacing);
 	if (ImGui::ArrowButton("##right", ImGuiDir_Right))
-		planeTransform.rotation = glm::rotate(planeTransform.rotation, 5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
+		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, 5 * deltaTime, glm::vec3(0.0, 1.0, 0.0));
 	ImGui::PopButtonRepeat();
 	ImGui::Separator();
 	ImGui::End();

@@ -30,36 +30,29 @@ struct Material{
 };
 uniform Material _Material;
 
-float ShadowCalc(vec4 lightSpacePos)
+float ShadowCalc(vec4 fragPosLightSpace, vec3 normal)
 {
-	//Maps light space position to the range [-1, 1]
-	vec3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
-	//Remaps to [0,1]
-	projCoords = projCoords * 0.5 + 0.5;
-	//When we look towards this fragment from the light's pov, what depth do we see?
-	float closestDepth = texture(_ShadowMap, projCoords.xy).r;
-	//What is our actual depth?
-	float fragmentDepth = projCoords.z;
-
-	float bias = max(_maxShadowBias * (1.0 - dot(fs_in.WorldNormal, _LightDirection)), _minShadowBias);
-	//Return 0 if our projection is outside of the depth map
-	if (projCoords.z > 1.0)
-	{ 
-		return 0.0;
-	}
-
-	float shadow = 0.0;
+    // perform perspective divide
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    // transform to [0,1] range
+    projCoords = projCoords * 0.5 + 0.5;
+    // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
+    float closestDepth = texture(_ShadowMap, projCoords.xy).r; 
+    // get depth of current fragment from light's perspective
+    float currentDepth = projCoords.z;
+	float bias = max(0.05 * (1.0 - dot(normal, vec3(0, -1, 0))), 0.005);  
+    float shadow = 0.0;
 	vec2 texelSize = 1.0 / textureSize(_ShadowMap, 0);
-	for(int x = -2; x <= 2; ++x)
+	for(int x = -1; x <= 1; ++x)
 	{
-		for(int y = -2; y <= 2; ++y)
+	    for(int y = -1; y <= 1; ++y)
 		{
 			float pcfDepth = texture(_ShadowMap, projCoords.xy + vec2(x, y) * texelSize).r; 
-			shadow += fragmentDepth - bias > closestDepth ? 1.0 : 0.0;        
+			shadow += currentDepth - bias > pcfDepth ? 0.00 : 0.0;        
 		}    
 	}
-	shadow /= 25.0;
-	return shadow;
+	shadow /= 9.0;
+    return shadow;
 }
 
 void main()
@@ -78,10 +71,9 @@ void main()
 	float specular = specularFactor * _Material.Ks;
 
 	//Shadow
-	float shadow = ShadowCalc(fs_in.LightSpacePos);
-
-	vec3 lightColor = ((_Material.Ka *_AmbientColor) + (1.0 - shadow) * (diffuse + specular));
-	vec3 objectColor = texture(_MainTex, fs_in.TexCoord).rgb;
+	float shadow = ShadowCalc(fs_in.LightSpacePos, normal);
 	
+	vec3 objectColor = texture(_MainTex, fs_in.TexCoord).rgb;
+
 	FragColor = vec4(objectColor * lightColor, 1.0);
 }
