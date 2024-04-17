@@ -10,10 +10,13 @@
 #include <ew/texture.h>
 #include <ew/procGen.h>
 
-#include <GLFW/glfw3.h>
+
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
+
+#include "Particle.h"
+#include "ParticleContact.h"
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 GLFWwindow* initWindow(const char* title, int width, int height);
@@ -174,6 +177,10 @@ float main_light_pos[3] = { 25.01f, 2.5f, -25.01f };
 
 const int SHADOW_RESOLUTION = 2048;
 
+Particle *playerObject;
+ParticleContact* collisionDetector;
+
+
 static void create_shadow_pass()
 {
 	//Shadow Framebuffer
@@ -270,6 +277,7 @@ int main() {
 		glEnable(GL_DEPTH_TEST);
 
 		cameraController.move(window, &camera, deltaTime);
+		ResolveCollisions();
 		
 		//=====SHADOW PASS=====
 		shadow_shader.use();
@@ -500,3 +508,18 @@ GLFWwindow* initWindow(const char* title, int width, int height) {
 	return window;
 }
 
+
+void ResolveCollisions()
+{
+
+
+
+}
+
+void SetupPlayer()
+{
+	playerObject = new Particle(glm::vec3(0, 1, 0), 10);
+	//playerObject->GetPosition
+
+	collisionDetector = new ParticleContact;
+}
