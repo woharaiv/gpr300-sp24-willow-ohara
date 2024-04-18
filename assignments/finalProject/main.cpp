@@ -11,6 +11,8 @@
 #include <ew/procGen.h>
 
 #include <GLFW/glfw3.h>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/rotate_vector.hpp>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
@@ -28,11 +30,12 @@ int screenHeight = 720;
 float prevFrameTime;
 float deltaTime;
 
+//Cameras
 ew::Camera camera;
 ew::CameraController cameraController;
 
 const glm::vec3 BACKGROUND_COLOR = glm::vec3(0.6f, 0.8f, 0.92f);
-
+//Base Material
 struct Material {
 	float Ka = 0;
 	float Kd = 1;
@@ -40,19 +43,7 @@ struct Material {
 	float Shininess = 128;
 }material;
 
-struct {
-	GLuint fbo;
-	GLuint world_position;
-	GLuint world_normal;
-	GLuint albedo;
-	GLuint depth;
-} deferred;
-
-struct {
-	GLuint vao;
-	GLuint vbo;
-}display;
-
+//Point Lights
 struct PointLight {
 	glm::vec3 position;
 	float radius;
@@ -77,45 +68,59 @@ void initialize_point_lights()
 	}
 }
 
-void create_deferred_pass(void)
+//Main Light
+float main_light_pos[3] = { 25.01f, 2.5f, -25.01f };
+
+//Deferred
+struct DeferredPass {
+	GLuint fbo;
+	GLuint world_position;
+	GLuint world_normal;
+	GLuint albedo;
+	GLuint depth;
+};
+
+DeferredPass basePass;
+
+void create_deferred_pass(DeferredPass* deferred)
 {
 	//create framebuffer
-	glCreateFramebuffers(1, &deferred.fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, deferred.fbo);
+	glCreateFramebuffers(1, &deferred->fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, deferred->fbo);
 
 	//generate world_position
-	glGenTextures(1, &deferred.world_position);
-	glBindTexture(GL_TEXTURE_2D, deferred.world_position);
+	glGenTextures(1, &deferred->world_position);
+	glBindTexture(GL_TEXTURE_2D, deferred->world_position);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, screenWidth, screenHeight, 0, GL_RGB, GL_FLOAT, NULL);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	//generate world_normal
-	glGenTextures(1, &deferred.world_normal);
-	glBindTexture(GL_TEXTURE_2D, deferred.world_normal);
+	glGenTextures(1, &deferred->world_normal);
+	glBindTexture(GL_TEXTURE_2D, deferred->world_normal);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, screenWidth, screenHeight, 0, GL_RGB, GL_FLOAT, NULL);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	//generate albedo
-	glGenTextures(1, &deferred.albedo);
-	glBindTexture(GL_TEXTURE_2D, deferred.albedo);
+	glGenTextures(1, &deferred->albedo);
+	glBindTexture(GL_TEXTURE_2D, deferred->albedo);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, screenWidth, screenHeight, 0, GL_RGB, GL_FLOAT, NULL);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	//generate depth
-	glGenTextures(1, &deferred.depth);
-	glBindTexture(GL_TEXTURE_2D, deferred.depth);
+	glGenTextures(1, &deferred->depth);
+	glBindTexture(GL_TEXTURE_2D, deferred->depth);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, screenWidth, screenHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	
 	//Attach buffers to the FBO
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, deferred.world_position, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, deferred.world_normal, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, deferred.albedo, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, deferred.depth, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, deferred->world_position, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, deferred->world_normal, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, deferred->albedo, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, deferred->depth, 0);
 	
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 	{
@@ -129,6 +134,12 @@ void create_deferred_pass(void)
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+//Display
+struct {
+	GLuint vao;
+	GLuint vbo;
+}display;
+//TODO: Make display passes for the other portals
 void create_display_pass()
 {
 	float quad[] = {
@@ -160,7 +171,7 @@ void create_display_pass()
 	glBindVertexArray(0);
 }
 
-//Shadow struct
+//Shadows
 struct {
 	GLuint rbo;
 	GLuint fbo;
@@ -169,8 +180,6 @@ struct {
 	float minBias = 0.005;
 	float maxBias = 0.03;
 }shadow;
-
-float main_light_pos[3] = { 25.01f, 2.5f, -25.01f };
 
 const int SHADOW_RESOLUTION = 2048;
 
@@ -214,7 +223,42 @@ static void create_shadow_pass()
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+
 ew::Transform planeTransform;
+
+//Portals
+//TODO: Make own file
+class Portal
+{
+public:
+	ew::Transform transform;
+	glm::vec3 normal = glm::vec3(0, 1, 0);
+	Portal* linkedPortal = nullptr;
+	
+	ew::Camera portalCamera;
+	DeferredPass portalPerspective;
+	
+	Portal(glm::vec3 startPos = glm::vec3(0))
+	{
+		transform.position = startPos;
+		transform.scale.x = 0.5f;
+		transform.scale.z = 0.1f;
+	}
+	void setRoatation(float radians)
+	{
+		transform.rotation = glm::rotate(glm::quat(1.0f, 0.0f, 0.0f, 0.0f), radians, glm::vec3(0, 1, 0));
+		normal = glm::vec3(sin(radians), 0, cos(radians));
+	}
+	glm::vec3 projectThroughPortal(glm::vec3 incoming)
+	{
+		glm::vec3 thisNormal = normal;
+		glm::vec3 otherNormal = linkedPortal->normal;
+		float rotationAngle = acos(glm::dot(-thisNormal, otherNormal));
+		return glm::rotate(incoming, rotationAngle, glm::vec3(0, 1, 0));
+	}
+};
+Portal bluePortal(glm::vec3(-5, 3, -5));
+Portal orangePortal(glm::vec3(5, 3, -5));
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);
@@ -238,13 +282,21 @@ int main() {
 	GLuint marbleRoughness = ew::loadTexture("assets/marble_roughness.jpg");
 
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
+	
 	ew::Mesh planeMesh = ew::createPlane(64, 64, 8);
 	planeTransform.position.y = -2;
+
+	ew::Mesh portalMesh = ew::createCube(4);
+	orangePortal.setRoatation(1.0f);
+	bluePortal.linkedPortal = &orangePortal;
+	orangePortal.linkedPortal = &bluePortal;
 
 	ew::Mesh lightOrbMesh = ew::createSphere(1.0f, 8);
 	ew::Mesh directionalLightMesh = ew::createCylinder(0.75, 2, 8);
 
-	create_deferred_pass();
+	create_deferred_pass(&basePass);
+	create_deferred_pass(&bluePortal.portalPerspective);
+	create_deferred_pass(&orangePortal.portalPerspective);
 	create_display_pass();
 	create_shadow_pass();
 
@@ -270,6 +322,30 @@ int main() {
 		glEnable(GL_DEPTH_TEST);
 
 		cameraController.move(window, &camera, deltaTime);
+		
+		//TODO: Fix math
+		//Camera from perspective of orange portal (what you see looking out of blue portal)
+		//computing the vector from the viewer's position to the input portal,
+		glm::vec3 cameraPos = bluePortal.transform.position - camera.position;
+		//rotating it through the same transformation applied to the view vector, 
+		cameraPos = bluePortal.projectThroughPortal(cameraPos);
+		//and then walking the camera back along this vector from the output portal's position. 
+		cameraPos = orangePortal.transform.position - cameraPos;
+		//setting the distance to the near plane in the projection matrix to be equal to the viewer's distance from the portal.
+		orangePortal.portalCamera.position = cameraPos;
+		orangePortal.portalCamera.target = bluePortal.portalCamera.position + (camera.target - camera.position);
+		
+		//Camera from perspective of blue portal (what you see looking out of orange portal)
+		//computing the vector from the viewer's position to the input portal,
+		cameraPos = orangePortal.transform.position - camera.position;
+		//rotating it through the same transformation applied to the view vector, 
+		cameraPos = orangePortal.projectThroughPortal(cameraPos);
+		//and then walking the camera back along this vector from the output portal's position. 
+		cameraPos = bluePortal.transform.position - cameraPos;
+		//setting the distance to the near plane in the projection matrix to be equal to the viewer's distance from the portal.
+		bluePortal.portalCamera.position = cameraPos;
+		bluePortal.portalCamera.target = orangePortal.portalCamera.position + (camera.target - camera.position);
+
 		
 		//=====SHADOW PASS=====
 		shadow_shader.use();
@@ -298,8 +374,9 @@ int main() {
 		//Reset viewport
 		glViewport(0, 0, screenWidth, screenHeight);
 
+
 		//===Geometry Pass===
-		glBindFramebuffer(GL_FRAMEBUFFER, deferred.fbo);
+		glBindFramebuffer(GL_FRAMEBUFFER, basePass.fbo);
 		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -309,9 +386,9 @@ int main() {
 		//Use deferred shader
 		shader.use();
 
-		//Set up shader to draw monkey
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		shader.setInt("_MainTex", 0);
+		//Draw Monkey
 		for (int i = 0; i < 10; i++)
 		{
 			for (int j = 0; j < 10; j++)
@@ -319,18 +396,81 @@ int main() {
 				drawAtPos(&monkeyModel, glm::vec3(i*5, 0, j*-5), &shader);
 			}
 		}
+		//Draw Portals
+		shader.setMat4("_Model", bluePortal.transform.modelMatrix());
+		portalMesh.draw();
+		shader.setMat4("_Model", orangePortal.transform.modelMatrix());
+		portalMesh.draw();
+		
+		//Draw Ground
 		drawAtPos(&planeMesh, glm::vec3(20, -2, -20), &shader);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+		//===Blue Portal Geometry Pass===
+		glBindFramebuffer(GL_FRAMEBUFFER, bluePortal.portalPerspective.fbo);
+		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+		//Bind marble texture to texture unit 0
+		glBindTextureUnit(0, marbleTexture); //glBindTextureUnit() is a new function to OpenGL 4.5
+
+		//Use deferred shader
+		shader.use();
+
+		shader.setMat4("_ViewProjection", bluePortal.portalCamera.projectionMatrix() * bluePortal.portalCamera.viewMatrix());
+		shader.setInt("_MainTex", 0);
+		//Draw Monkey
+		for (int i = 0; i < 10; i++)
+		{
+			for (int j = 0; j < 10; j++)
+			{
+				drawAtPos(&monkeyModel, glm::vec3(i * 5, 0, j * -5), &shader);
+			}
+		}
+		//Draw Portals
+		shader.setMat4("_Model", orangePortal.transform.modelMatrix());
+		portalMesh.draw();
+
+		//Draw Ground
+		drawAtPos(&planeMesh, glm::vec3(20, -2, -20), &shader);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		//===Orange Portal Geometry Pass===
+		glBindFramebuffer(GL_FRAMEBUFFER, orangePortal.portalPerspective.fbo);
+		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		//Bind marble texture to texture unit 0
+		glBindTextureUnit(0, marbleTexture); //glBindTextureUnit() is a new function to OpenGL 4.5
+
+		//Use deferred shader
+		shader.use();
+
+		shader.setMat4("_ViewProjection", orangePortal.portalCamera.projectionMatrix() * orangePortal.portalCamera.viewMatrix());
+		shader.setInt("_MainTex", 0);
+		//Draw Monkey
+		for (int i = 0; i < 10; i++)
+		{
+			for (int j = 0; j < 10; j++)
+			{
+				drawAtPos(&monkeyModel, glm::vec3(i * 5, 0, j * -5), &shader);
+			}
+		}
+		//Draw Portals
+		shader.setMat4("_Model", bluePortal.transform.modelMatrix());
+		portalMesh.draw();
+
+		//Draw Ground
+		drawAtPos(&planeMesh, glm::vec3(20, -2, -20), &shader);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		//===Lighting Pass===
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glBindVertexArray(display.vao);
-		glBindTextureUnit(0, deferred.world_position);
-		glBindTextureUnit(1, deferred.world_normal);
-		glBindTextureUnit(2, deferred.albedo);
+		glBindTextureUnit(0, basePass.world_position);
+		glBindTextureUnit(1, basePass.world_normal);
+		glBindTextureUnit(2, basePass.albedo);
 		glBindTextureUnit(3, shadow.map);
 		
 		//Use plain shader for final draw
@@ -367,7 +507,7 @@ int main() {
 		//===Light Orbs===
 		glEnable(GL_DEPTH_TEST);
 		//Copy lighting pass depth buffer to the current fbo
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, deferred.fbo);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, basePass.fbo);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 		glBlitFramebuffer(0, 0, screenWidth, screenHeight, 0, 0, screenWidth, screenHeight, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
 
@@ -422,28 +562,62 @@ void drawUI() {
 	ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS", ImGui::GetIO().DeltaTime * 1000, 1.0f / ImGui::GetIO().DeltaTime, 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 	if (ImGui::Button("Reset Camera"))
 		resetCamera(&camera, &cameraController);
-	if (ImGui::CollapsingHeader("Material")) {
-		ImGui::SliderFloat("Ambient Coefficient", &material.Ka, 0.0f, 2.0f);
-		ImGui::SliderFloat("Diffuse Coefficient", &material.Kd, 0.0f, 2.0f);
-		ImGui::SliderFloat("Specular Coefficient", &material.Ks, 0.0f, 2.0f);
-		ImGui::SliderFloat("Shininess", &material.Shininess, 2.0f, 1024.0f);
+	if (ImGui::CollapsingHeader("Portal Positions")) {
+		if (ImGui::Button("Reset Portals"))
+		{
+			bluePortal.transform.position = glm::vec3(5, 3, -5);
+			orangePortal.transform.position = glm::vec3(-5, 3, -5);
+		}
+		ImGui::SliderFloat3("Blue Portal", glm::value_ptr(bluePortal.transform.position), -50, 50);
+		ImGui::SliderFloat3("Orange Portal", glm::value_ptr(orangePortal.transform.position), -50, 50);
 	}
 	
 	ImGui::End();
 
 	ImGui::Begin("Maps");
-	ImVec2 windowSize = ImGui::GetWindowSize();
-	windowSize.x /= 2;
-	windowSize.y = windowSize.x;
+	if (ImGui::CollapsingHeader("Base Camera Maps"))
+	{
+		ImVec2 windowSize = ImGui::GetWindowSize();
+		windowSize.x /= 2;
+		windowSize.y = windowSize.x;
 
-	ImGui::Image((ImTextureID)deferred.world_position, windowSize, ImVec2(0, 1), ImVec2(1, 0));
-	ImGui::SameLine();
-	ImGui::Image((ImTextureID)deferred.world_normal, windowSize, ImVec2(0, 1), ImVec2(1, 0));
-	
-	ImGui::Image((ImTextureID)deferred.albedo, windowSize, ImVec2(0, 1), ImVec2(1, 0));
-	ImGui::SameLine();
-	ImGui::Image((ImTextureID)shadow.map, windowSize, ImVec2(0, 1), ImVec2(1, 0));
-	
+		ImGui::Image((ImTextureID)basePass.world_position, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+		ImGui::SameLine();
+		ImGui::Image((ImTextureID)basePass.world_normal, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+
+		ImGui::Image((ImTextureID)basePass.albedo, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+		ImGui::SameLine();
+		ImGui::Image((ImTextureID)shadow.map, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+	}
+	if (ImGui::CollapsingHeader("When looking through the Blue Portal, you'll see"))
+	{
+		ImVec2 windowSize = ImGui::GetWindowSize();
+		windowSize.x /= 4;
+		windowSize.y = windowSize.x;
+
+		ImGui::Image((ImTextureID)bluePortal.portalPerspective.world_position, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+		ImGui::SameLine();
+		ImGui::Image((ImTextureID)bluePortal.portalPerspective.world_normal, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+
+		ImGui::Image((ImTextureID)bluePortal.portalPerspective.albedo, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+		ImGui::SameLine();
+		ImGui::Image((ImTextureID)shadow.map, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+	}
+	if (ImGui::CollapsingHeader("When looking through the Orange Portal, you'll see"))
+	{
+		ImVec2 windowSize = ImGui::GetWindowSize();
+		windowSize.x /= 4;
+		windowSize.y = windowSize.x;
+
+		ImGui::Image((ImTextureID)orangePortal.portalPerspective.world_position, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+		ImGui::SameLine();
+		ImGui::Image((ImTextureID)orangePortal.portalPerspective.world_normal, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+
+		ImGui::Image((ImTextureID)orangePortal.portalPerspective.albedo, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+		ImGui::SameLine();
+		ImGui::Image((ImTextureID)shadow.map, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+	}
+
 	ImGui::End();
 
 	ImGui::Render();
