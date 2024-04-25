@@ -10,6 +10,8 @@
 #include <ew/texture.h>
 #include <ew/procGen.h>
 
+#include <willowLib/portals.h>
+
 #include <GLFW/glfw3.h>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/rotate_vector.hpp>
@@ -72,17 +74,9 @@ void initialize_point_lights()
 float main_light_pos[3] = { 25.01f, 2.5f, -25.01f };
 
 //Deferred
-struct DeferredPass {
-	GLuint fbo;
-	GLuint world_position;
-	GLuint world_normal;
-	GLuint albedo;
-	GLuint depth;
-};
+willowLib::DeferredPass basePass;
 
-DeferredPass basePass;
-
-void create_deferred_pass(DeferredPass* deferred)
+void create_deferred_pass(willowLib::DeferredPass* deferred)
 {
 	//create framebuffer
 	glCreateFramebuffers(1, &deferred->fbo);
@@ -227,38 +221,8 @@ static void create_shadow_pass()
 ew::Transform planeTransform;
 
 //Portals
-//TODO: Make own file
-class Portal
-{
-public:
-	ew::Transform transform;
-	glm::vec3 normal = glm::vec3(0, 1, 0);
-	Portal* linkedPortal = nullptr;
-	
-	ew::Camera portalCamera;
-	DeferredPass portalPerspective;
-	
-	Portal(glm::vec3 startPos = glm::vec3(0))
-	{
-		transform.position = startPos;
-		transform.scale.x = 0.5f;
-		transform.scale.z = 0.1f;
-	}
-	void setRoatation(float radians)
-	{
-		transform.rotation = glm::rotate(glm::quat(1.0f, 0.0f, 0.0f, 0.0f), radians, glm::vec3(0, 1, 0));
-		normal = glm::vec3(sin(radians), 0, cos(radians));
-	}
-	glm::vec3 projectThroughPortal(glm::vec3 incoming)
-	{
-		glm::vec3 thisNormal = normal;
-		glm::vec3 otherNormal = linkedPortal->normal;
-		float rotationAngle = acos(glm::dot(-thisNormal, otherNormal));
-		return glm::rotate(incoming, rotationAngle, glm::vec3(0, 1, 0));
-	}
-};
-Portal bluePortal(glm::vec3(-5, 3, -5));
-Portal orangePortal(glm::vec3(5, 3, -5));
+willowLib::Portal bluePortal(glm::vec3(-1, 3, -5));
+willowLib::Portal orangePortal(glm::vec3(-3.5, 3, -2.5));
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);
@@ -280,14 +244,18 @@ int main() {
 
 	GLuint marbleTexture = ew::loadTexture("assets/marble_color.jpg");
 	GLuint marbleRoughness = ew::loadTexture("assets/marble_roughness.jpg");
+	
+	GLuint brickTexture = ew::loadTexture("assets/brick_color.jpg");
 
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 	
 	ew::Mesh planeMesh = ew::createPlane(64, 64, 8);
 	planeTransform.position.y = -2;
 
-	ew::Mesh portalMesh = ew::createCube(4);
-	orangePortal.setRoatation(1.0f);
+	//Initialize portals
+	ew::Mesh portalMesh = ew::createVerticalPlane(2, 4.5, 2);
+	orangePortal.setYaw(3.14159f+1.570796f);
+	bluePortal.setYaw(3.14159f);
 	bluePortal.linkedPortal = &orangePortal;
 	orangePortal.linkedPortal = &bluePortal;
 
@@ -323,28 +291,8 @@ int main() {
 
 		cameraController.move(window, &camera, deltaTime);
 		
-		//TODO: Fix math
-		//Camera from perspective of orange portal (what you see looking out of blue portal)
-		//computing the vector from the viewer's position to the input portal,
-		glm::vec3 cameraPos = bluePortal.transform.position - camera.position;
-		//rotating it through the same transformation applied to the view vector, 
-		cameraPos = bluePortal.projectThroughPortal(cameraPos);
-		//and then walking the camera back along this vector from the output portal's position. 
-		cameraPos = orangePortal.transform.position - cameraPos;
-		//setting the distance to the near plane in the projection matrix to be equal to the viewer's distance from the portal.
-		orangePortal.portalCamera.position = cameraPos;
-		orangePortal.portalCamera.target = bluePortal.portalCamera.position + (camera.target - camera.position);
-		
-		//Camera from perspective of blue portal (what you see looking out of orange portal)
-		//computing the vector from the viewer's position to the input portal,
-		cameraPos = orangePortal.transform.position - camera.position;
-		//rotating it through the same transformation applied to the view vector, 
-		cameraPos = orangePortal.projectThroughPortal(cameraPos);
-		//and then walking the camera back along this vector from the output portal's position. 
-		cameraPos = bluePortal.transform.position - cameraPos;
-		//setting the distance to the near plane in the projection matrix to be equal to the viewer's distance from the portal.
-		bluePortal.portalCamera.position = cameraPos;
-		bluePortal.portalCamera.target = orangePortal.portalCamera.position + (camera.target - camera.position);
+		bluePortal.updatePortalPerspective(&camera);
+		orangePortal.updatePortalPerspective(&camera);
 
 		
 		//=====SHADOW PASS=====
@@ -399,10 +347,12 @@ int main() {
 		//Draw Portals
 		shader.setMat4("_Model", bluePortal.transform.modelMatrix());
 		portalMesh.draw();
+		glBindTextureUnit(0, brickTexture);
 		shader.setMat4("_Model", orangePortal.transform.modelMatrix());
 		portalMesh.draw();
 		
 		//Draw Ground
+		glBindTextureUnit(0, marbleTexture);
 		drawAtPos(&planeMesh, glm::vec3(20, -2, -20), &shader);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -428,10 +378,12 @@ int main() {
 			}
 		}
 		//Draw Portals
+		glBindTextureUnit(0, brickTexture);
 		shader.setMat4("_Model", orangePortal.transform.modelMatrix());
 		portalMesh.draw();
 
 		//Draw Ground
+		glBindTextureUnit(0, marbleTexture);
 		drawAtPos(&planeMesh, glm::vec3(20, -2, -20), &shader);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -459,8 +411,9 @@ int main() {
 		//Draw Portals
 		shader.setMat4("_Model", bluePortal.transform.modelMatrix());
 		portalMesh.draw();
-
+		
 		//Draw Ground
+		glBindTextureUnit(0, marbleTexture);
 		drawAtPos(&planeMesh, glm::vec3(20, -2, -20), &shader);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
