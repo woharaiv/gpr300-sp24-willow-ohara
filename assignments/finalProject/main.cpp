@@ -159,7 +159,7 @@ int main() {
 		glEnable(GL_DEPTH_TEST);
 
 		cameraController.move(window, &camera, deltaTime);
-		ResolveCollisions();
+		//ResolveCollisions();
 		
 		bluePortal.updatePortalPerspective(&camera);
 		orangePortal.updatePortalPerspective(&camera);
@@ -503,17 +503,17 @@ GLFWwindow* initWindow(const char* title, int width, int height) {
 }
 
 
-void ResolveCollisions()
-{
-
-
-
-}
-
-void SetupPlayer()
-{
-	playerObject = new Particle(glm::vec3(0, 1, 0), 10);
-	//playerObject->GetPosition
-
-	collisionDetector = new ParticleContact;
-}
+//void ResolveCollisions()
+//{
+//
+//
+//
+//}
+//
+//void SetupPlayer()
+//{
+//	playerObject = new Particle(glm::vec3(0, 1, 0), 10);
+//	//playerObject->GetPosition
+//
+//	collisionDetector = new ParticleContact;
+//}
