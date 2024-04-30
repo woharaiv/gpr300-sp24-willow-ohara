@@ -25,6 +25,7 @@ void drawUI();
 void resetCamera(ew::Camera* camera, ew::CameraController* controller);
 void drawAtPos(ew::Model*, glm::vec3, ew::Shader*);
 void drawAtPos(ew::Mesh*, glm::vec3, ew::Shader*);
+void runLightingPass(ew::Shader* displayShader, willowLib::DisplayPass* disp, willowLib::DeferredPass* def, ew::Camera* cam);
 
 //Global state
 int screenWidth = 1080;
@@ -73,153 +74,18 @@ void initialize_point_lights()
 //Main Light
 float main_light_pos[3] = { 25.01f, 2.5f, -25.01f };
 
+glm::mat4 lightSpaceMatrix;
+
 //Deferred
 willowLib::DeferredPass basePass;
 
-void create_deferred_pass(willowLib::DeferredPass* deferred)
-{
-	//create framebuffer
-	glCreateFramebuffers(1, &deferred->fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, deferred->fbo);
-
-	//generate world_position
-	glGenTextures(1, &deferred->world_position);
-	glBindTexture(GL_TEXTURE_2D, deferred->world_position);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, screenWidth, screenHeight, 0, GL_RGB, GL_FLOAT, NULL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	//generate world_normal
-	glGenTextures(1, &deferred->world_normal);
-	glBindTexture(GL_TEXTURE_2D, deferred->world_normal);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, screenWidth, screenHeight, 0, GL_RGB, GL_FLOAT, NULL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	//generate albedo
-	glGenTextures(1, &deferred->albedo);
-	glBindTexture(GL_TEXTURE_2D, deferred->albedo);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, screenWidth, screenHeight, 0, GL_RGB, GL_FLOAT, NULL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	//generate depth
-	glGenTextures(1, &deferred->depth);
-	glBindTexture(GL_TEXTURE_2D, deferred->depth);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, screenWidth, screenHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	
-	//Attach buffers to the FBO
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, deferred->world_position, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, deferred->world_normal, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, deferred->albedo, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, deferred->depth, 0);
-	
-	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-	{
-		printf("ERROR::FRAMEBUFFER:: Framebuffer is not complete!\n");
-	}
-
-	unsigned int buffers[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
-	glDrawBuffers(3, buffers);
-
-	//Unbind the framebuffer
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
 //Display
-struct {
-	GLuint vao;
-	GLuint vbo;
-}display;
-//TODO: Make display passes for the other portals
-void create_display_pass()
-{
-	float quad[] = {
-		//-X- -Y-  -U- -V- 
-		  //Tri 1
-		  -1,  1,   0,  1,
-		  -1, -1,   0,  0,
-		   1,  1,   1,  1,
+willowLib::DisplayPass display;
 
-		   //Tri 2
-			1, -1,   1,  0,
-			1,  1,   1,  1,
-		   -1, -1,   0,  0,
-	};
-	//Set up VAO and VBO for screen quad
-	glGenVertexArrays(1, &display.vao);
-	glGenBuffers(1, &display.vbo);
-
-	glBindVertexArray(display.vao);
-	glBindBuffer(GL_ARRAY_BUFFER, display.vbo);
-
-	glBufferData(GL_ARRAY_BUFFER, sizeof(quad), &quad, GL_STATIC_DRAW);
-
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-
-	glBindVertexArray(0);
-}
-
-//Shadows
-struct {
-	GLuint rbo;
-	GLuint fbo;
-	GLuint map;
-	GLuint vao;
-	float minBias = 0.005;
-	float maxBias = 0.03;
-}shadow;
-
-const int SHADOW_RESOLUTION = 2048;
-
-static void create_shadow_pass()
-{
-	//Shadow Framebuffer
-	glGenFramebuffers(1, &shadow.fbo);
-	//Shadow map
-	glGenTextures(1, &shadow.map);
-
-	//Bind to FBO
-	glBindFramebuffer(GL_FRAMEBUFFER, shadow.fbo);
-	//Bind to shadow map
-	glBindTexture(GL_TEXTURE_2D, shadow.map);
-	//Initialize shadow map texture
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, SHADOW_RESOLUTION, SHADOW_RESOLUTION, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-	//Change buffer texture's filtering mode
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	//Change buffer texture's wrapping mode
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-	float borderColor[] = { 1.0f,1.0f,1.0f,1.0f };
-	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
-	//Change buffer texture's compare mode
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-
-	//Attach depth buffer to FBO
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadow.map, 0);
-	//Tell glCheckFramebufferStatus that we don't need a color buffer here
-	glDrawBuffer(GL_NONE);
-	glReadBuffer(GL_NONE);
-
-	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-	{
-		printf("ERROR::FRAMEBUFFER:: Framebuffer is not complete!\n");
-	}
-
-	//Unbind the framebuffer
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
+//Shadow
+willowLib::ShadowPass shadow;
 
 ew::Transform planeTransform;
-
 //Portals
 willowLib::Portal bluePortal(glm::vec3(-1, 3, -5));
 willowLib::Portal orangePortal(glm::vec3(-3.5, 3, -2.5));
@@ -254,7 +120,7 @@ int main() {
 
 	//Initialize portals
 	ew::Mesh portalMesh = ew::createVerticalPlane(2, 4.5, 2);
-	orangePortal.setYaw(3.14159f+1.570796f);
+	
 	bluePortal.setYaw(3.14159f);
 	bluePortal.linkedPortal = &orangePortal;
 	orangePortal.linkedPortal = &bluePortal;
@@ -262,11 +128,11 @@ int main() {
 	ew::Mesh lightOrbMesh = ew::createSphere(1.0f, 8);
 	ew::Mesh directionalLightMesh = ew::createCylinder(0.75, 2, 8);
 
-	create_deferred_pass(&basePass);
-	create_deferred_pass(&bluePortal.portalPerspective);
-	create_deferred_pass(&orangePortal.portalPerspective);
-	create_display_pass();
-	create_shadow_pass();
+	willowLib::createDeferredPass(&basePass, screenWidth, screenHeight);
+	willowLib::createDeferredPass(&bluePortal.portalPerspective, screenWidth, screenHeight);
+	willowLib::createDeferredPass(&orangePortal.portalPerspective, screenWidth, screenHeight);
+	willowLib::createDisplayPass(&display);
+	willowLib::createShadowPass(&shadow);
 
 	initialize_point_lights();
 
@@ -284,7 +150,7 @@ int main() {
 			glm::vec3(25, 0, -25),
 			glm::vec3(0, 1, 0)
 		);
-		glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+		lightSpaceMatrix = lightProjection * lightView;
 
 		//Enable depth testing
 		glEnable(GL_DEPTH_TEST);
@@ -300,7 +166,7 @@ int main() {
 
 		shadow_shader.setMat4("_LightSpaceMatrix", lightSpaceMatrix);
 
-		glViewport(0, 0, SHADOW_RESOLUTION, SHADOW_RESOLUTION);
+		glViewport(0, 0, willowLib::SHADOW_RESOLUTION, willowLib::SHADOW_RESOLUTION);
 		glBindFramebuffer(GL_FRAMEBUFFER, shadow.fbo);
 		//Clear framebuffer
 		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
@@ -345,11 +211,9 @@ int main() {
 			}
 		}
 		//Draw Portals
-		shader.setMat4("_Model", bluePortal.transform.modelMatrix());
-		portalMesh.draw();
+		bluePortal.drawPortal(&portalMesh, &shader, true);
 		glBindTextureUnit(0, brickTexture);
-		shader.setMat4("_Model", orangePortal.transform.modelMatrix());
-		portalMesh.draw();
+		orangePortal.drawPortal(&portalMesh, &shader, true);
 		
 		//Draw Ground
 		glBindTextureUnit(0, marbleTexture);
@@ -378,9 +242,10 @@ int main() {
 			}
 		}
 		//Draw Portals
+		bluePortal.drawPortal(&portalMesh, &shader);
 		glBindTextureUnit(0, brickTexture);
-		shader.setMat4("_Model", orangePortal.transform.modelMatrix());
-		portalMesh.draw();
+		orangePortal.drawPortal(&portalMesh, &shader);
+		
 
 		//Draw Ground
 		glBindTextureUnit(0, marbleTexture);
@@ -409,8 +274,9 @@ int main() {
 			}
 		}
 		//Draw Portals
-		shader.setMat4("_Model", bluePortal.transform.modelMatrix());
-		portalMesh.draw();
+		bluePortal.drawPortal(&portalMesh, &shader);
+		glBindTextureUnit(0, brickTexture);
+		orangePortal.drawPortal(&portalMesh, &shader);
 		
 		//Draw Ground
 		glBindTextureUnit(0, marbleTexture);
@@ -418,44 +284,7 @@ int main() {
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		//===Lighting Pass===
-		glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		glBindVertexArray(display.vao);
-		glBindTextureUnit(0, basePass.world_position);
-		glBindTextureUnit(1, basePass.world_normal);
-		glBindTextureUnit(2, basePass.albedo);
-		glBindTextureUnit(3, shadow.map);
-		
-		//Use plain shader for final draw
-		display_shader.use();
-		
-		//Maps from geometry pass
-		display_shader.setInt("gPosition", 0);
-		display_shader.setInt("gNormals", 1);
-		display_shader.setInt("gAlbedo", 2);
-		display_shader.setInt("shadowMap", 3);
-		
-		//Lighting variables
-		display_shader.setVec3("viewPos", camera.position);
-		display_shader.setVec3("ambientColor", BACKGROUND_COLOR / 2.0f); //Ambient color is realtive to background color, making it feel natural
-		display_shader.setVec3("directionalLightPosition", glm::vec3(main_light_pos[0], main_light_pos[1], main_light_pos[2]));
-		display_shader.setMat4("_LightSpaceMatrix", lightSpaceMatrix);
-
-		display_shader.setFloat("material.Ka", material.Ka);
-		display_shader.setFloat("material.Kd", material.Kd);
-		display_shader.setFloat("material.Ks", material.Ks);
-		display_shader.setFloat("material.Shininess", material.Shininess);
-		for (int i = 0; i < MAX_POINT_LIGHTS; i++)
-		{
-			display_shader.setVec3(("pointLights[" + std::to_string(i) + "].position"), pointLights[i].position);
-			display_shader.setVec4(("pointLights[" + std::to_string(i) + "].color"), pointLights[i].color);
-			display_shader.setFloat(("pointLights[" + std::to_string(i) + "].radius"), pointLights[i].radius);
-		}
-
-		//Disable detph testing
-		glDisable(GL_DEPTH_TEST);
-		//Draw screen triangle
-		glDrawArrays(GL_TRIANGLES, 0, 6);
+		runLightingPass(&display_shader, &display, &basePass, &camera);
 
 		//===Light Orbs===
 		glEnable(GL_DEPTH_TEST);
@@ -489,6 +318,48 @@ int main() {
 		glfwSwapBuffers(window);
 	}
 	printf("Shutting down...");
+}
+
+void runLightingPass(ew::Shader* displayShader, willowLib::DisplayPass* disp, willowLib::DeferredPass* def, ew::Camera* cam)
+{
+	glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glBindVertexArray(disp->vao);
+	glBindTextureUnit(0, def->world_position);
+	glBindTextureUnit(1, def->world_normal);
+	glBindTextureUnit(2, def->albedo);
+	glBindTextureUnit(3, shadow.map);
+
+	//Use plain shader for final draw
+	displayShader->use();
+
+	//Maps from geometry pass
+	displayShader->setInt("gPosition", 0);
+	displayShader->setInt("gNormals", 1);
+	displayShader->setInt("gAlbedo", 2);
+	displayShader->setInt("shadowMap", 3);
+
+	//Lighting variables
+	displayShader->setVec3("viewPos", cam->position);
+	displayShader->setVec3("ambientColor", BACKGROUND_COLOR / 2.0f); //Ambient color is realtive to background color, making it feel natural
+	displayShader->setVec3("directionalLightPosition", glm::vec3(main_light_pos[0], main_light_pos[1], main_light_pos[2]));
+	displayShader->setMat4("_LightSpaceMatrix", lightSpaceMatrix);
+
+	displayShader->setFloat("material.Ka", material.Ka);
+	displayShader->setFloat("material.Kd", material.Kd);
+	displayShader->setFloat("material.Ks", material.Ks);
+	displayShader->setFloat("material.Shininess", material.Shininess);
+	for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+	{
+		displayShader->setVec3(("pointLights[" + std::to_string(i) + "].position"), pointLights[i].position);
+		displayShader->setVec4(("pointLights[" + std::to_string(i) + "].color"), pointLights[i].color);
+		displayShader->setFloat(("pointLights[" + std::to_string(i) + "].radius"), pointLights[i].radius);
+	}
+
+	//Disable detph testing
+	glDisable(GL_DEPTH_TEST);
+	//Draw screen triangle
+	glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
 void drawAtPos(ew::Model* model, glm::vec3 position, ew::Shader* shader)

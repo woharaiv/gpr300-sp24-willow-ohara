@@ -1,23 +1,15 @@
 #pragma once
 #include "../ew/transform.h"
 #include "../ew/camera.h"
+#include "../ew/procGen.h"
+#include "../ew/shader.h"
 #include "../ew/external/glad.h"
+#include "passes.h"
 
 namespace willowLib
 {
-	struct DeferredPass {
-		GLuint fbo = 0;
-		GLuint world_position = 0;
-		GLuint world_normal = 0;
-		GLuint albedo = 0;
-		GLuint depth = 0;
-	};
-
-	struct StencilPass {
-		GLuint fbo = 0;
-		GLuint stencil = 0;
-	};
 	
+
 	//Function from https://discussions.unity.com/t/converting-matrix4x4-to-quaternion-vector3/1438/2
 	static glm::quat QuaternionFromMatrix(glm::mat4 m) {
 		// Adapted from: http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/index.htm
@@ -45,6 +37,7 @@ namespace willowLib
 		ew::Camera portalCamera;
 
 		StencilPass portalStencil;
+		DisplayPass display;
 		DeferredPass portalPerspective;
 
 		Portal(glm::vec3 startPos = glm::vec3(0));
@@ -56,5 +49,7 @@ namespace willowLib
 		
 		//Updates the portal's camera to properly show what that portal should display when viewed from the camera's current position.
 		glm::vec3 updatePortalPerspective(ew::Camera* observer);
+
+		void drawPortal(ew::Mesh* mesh, ew::Shader* shader, bool cullPortalSide = false);
 	};
 }

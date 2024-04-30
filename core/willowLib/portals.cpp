@@ -28,7 +28,7 @@ namespace willowLib
 		//Get target position from quaternion
 		glm::quat q = QuaternionFromMatrix(m);
 		glm::vec3 u(q.x, q.y, q.z);
-		glm::vec3 v(0, 0, -1);
+		glm::vec3 v(0, 0, 1);
 		glm::vec3 localLookAt = 2.0f * glm::dot(u, v) * u + (q.w * q.w - dot(u, u)) * v + 2.0f * q.w * cross(u, v);
 		portalCamera.target = portalCamera.position + localLookAt;
 
@@ -38,5 +38,15 @@ namespace willowLib
 		// draw finished scene to texture
 		// draw in portal, using its screen space uvs to map the portal camera's texture
 		//
+	}
+
+	void Portal::drawPortal(ew::Mesh* mesh, ew::Shader* shader, bool cullPortalSide)
+	{
+		if (!cullPortalSide)
+			glDisable(GL_CULL_FACE);
+		shader->setMat4("_Model", transform.modelMatrix());
+		mesh->draw();
+		if (!cullPortalSide)
+			glEnable(GL_CULL_FACE);
 	}
 }
