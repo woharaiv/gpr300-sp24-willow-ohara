@@ -95,6 +95,41 @@ namespace ew {
 		}
 		return mesh;
 	}
+	MeshData createVerticalPlane(float width, float height, int subdivisions)
+	{
+		//VERTICES
+		MeshData mesh;
+		int columns = subdivisions + 1;
+		for (size_t row = 0; row <= subdivisions; row++)
+		{
+			for (size_t col = 0; col <= subdivisions; col++)
+			{
+				Vertex v;
+				v.uv.x = ((float)col / subdivisions);
+				v.uv.y = ((float)row / subdivisions);
+				v.pos.x = -width / 2 + width * v.uv.x;
+				v.pos.y = height / 2 - height * v.uv.y;
+				v.pos.z = 0;
+				v.normal = vec3(0, 1, 0);
+				mesh.vertices.push_back(v);
+			}
+		}
+		//INDICES
+		for (size_t row = 0; row < subdivisions; row++)
+		{
+			for (size_t col = 0; col < subdivisions; col++)
+			{
+				int start = row * columns + col;
+				mesh.indices.push_back(start);
+				mesh.indices.push_back(start + 1);
+				mesh.indices.push_back(start + columns + 1);
+				mesh.indices.push_back(start + columns + 1);
+				mesh.indices.push_back(start + columns);
+				mesh.indices.push_back(start);
+			}
+		}
+		return mesh;
+	}
 	MeshData createSphere(float radius, int subdivisions)
 	{
 		MeshData mesh;
