@@ -89,7 +89,7 @@ willowLib::ShadowPass shadow;
 ew::Transform planeTransform;
 //Portals
 willowLib::Portal bluePortal(glm::vec3(-1, 3, -5));
-willowLib::Portal orangePortal(glm::vec3(-3.5, 3, -2.5));
+willowLib::Portal orangePortal(glm::vec3(-1, 3, -5));
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);
@@ -122,7 +122,7 @@ int main() {
 	planeTransform.position.y = -2;
 
 	//Initialize portals
-	ew::Mesh portalMesh = ew::createVerticalPlane(2, 4.5, 2);
+	ew::Mesh portalMesh = ew::createVerticalPlane(2, 4.5, 200);
 	
 	bluePortal.setYaw(3.14159f);
 	bluePortal.linkedPortal = &orangePortal;
@@ -242,10 +242,6 @@ int main() {
 				drawAtPos(&monkeyModel, glm::vec3(i * 5, 0, j * -5), &shader);
 			}
 		}
-		//Draw Portals
-		bluePortal.drawPortal(&portalMesh, &shader);
-		glBindTextureUnit(0, brickTexture);
-		orangePortal.drawPortal(&portalMesh, &shader);
 		
 
 		//Draw Ground
@@ -274,10 +270,6 @@ int main() {
 				drawAtPos(&monkeyModel, glm::vec3(i * 5, 0, j * -5), &shader);
 			}
 		}
-		//Draw Portals
-		bluePortal.drawPortal(&portalMesh, &shader);
-		glBindTextureUnit(0, brickTexture);
-		orangePortal.drawPortal(&portalMesh, &shader);
 		
 		//Draw Ground
 		glBindTextureUnit(0, marbleTexture);

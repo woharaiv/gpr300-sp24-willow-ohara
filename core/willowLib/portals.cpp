@@ -29,7 +29,7 @@ namespace willowLib
 		glm::quat q = QuaternionFromMatrix(m);
 		glm::vec3 u(q.x, q.y, q.z);
 		glm::vec3 v(0, 0, 1);
-		glm::vec3 localLookAt = 2.0f * glm::dot(u, v) * u + (q.w * q.w - dot(u, u)) * v + 2.0f * q.w * cross(u, v);
+		glm::vec3 localLookAt = glm::dot(u, v) * u + (q.w * q.w - dot(u, u)) * v + q.w * cross(u, v);
 		portalCamera.target = portalCamera.position + localLookAt;
 
 		return portalCamera.position;
