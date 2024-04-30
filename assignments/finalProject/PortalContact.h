@@ -9,15 +9,22 @@ class PortalContact
 {
 private:
 
-	//void CheckCollisions();
-
 	ObjectTravel objectTravel;
 	ew::Transform portalTransform;
 	ew::Transform attatchedPortalTransform;
 
+	bool isColliding;
+
 	int GetSign(int num);
 
+	bool checkForCollision();
+	bool checkForNoCollision();
+
 public:
+
+	PortalContact();
+
+	void CheckCollisions();
 
 	void HandleContacts();
 

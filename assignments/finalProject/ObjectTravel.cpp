@@ -27,7 +27,7 @@ void ObjectTravel::UpdateObjectPosition(ew::Transform objectPosition)
 	{
 		//CheckCollisions();
 		objectTransform = objectPosition;
-		CheckCollisions();
+		//CheckCollisions();
 	}
 	else
 	{
@@ -35,19 +35,6 @@ void ObjectTravel::UpdateObjectPosition(ew::Transform objectPosition)
 	}
 	
 }
-
-void ObjectTravel::CheckCollisions()
-{
-	/*
-	Psuedo code:
-
-	if (object collide with portal 1)
-	{
-		portalContact.TravelerEnterPortal();
-	}
-	*/
-}
-
 
 #pragma region Getters&Setters
 

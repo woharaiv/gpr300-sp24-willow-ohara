@@ -3,7 +3,7 @@
 #include <ew/transform.h>
 
 #include <willowLib/portals.h>
-#include "PortalContact.h"
+//#include "PortalContact.h"
 
 class ObjectTravel
 {
@@ -24,8 +24,6 @@ public:
 	void ExitPortal();
 
 	void UpdateObjectPosition(ew::Transform cameraPosition);
-
-	void CheckCollisions();
 
 	ew::Transform GetObjectPosition();
 

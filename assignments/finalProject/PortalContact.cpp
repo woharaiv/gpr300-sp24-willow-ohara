@@ -1,13 +1,32 @@
 
 #include "PortalContact.h"
 
+PortalContact::PortalContact()
+{
+	isColliding = false;
+}
 
-//void PortalContact::CheckCollisions()
-//{
-//	
-//}
+void PortalContact::CheckCollisions() //NOTE: This should be called int the update loop
+{
 
-void PortalContact::HandleContacts() //NOTE: Called whenever the object moves
+	if (isColliding)
+	{
+		if (checkForNoCollision()) //if object is no longer colliding with portal
+		{
+			isColliding = false;
+			TravelerExitPortal();
+		}
+	}
+
+	if (checkForCollision()) //if object collide with portal
+	{
+		isColliding = true;
+		TravelerEnterPortal();
+	}
+
+}
+
+void PortalContact::HandleContacts() //NOTE: This should be called in the update loop
 {
 	glm::vec3 portalOffset = objectTravel.GetObjectPosition().position - portalTransform.position;
 
@@ -30,8 +49,6 @@ void PortalContact::HandleContacts() //NOTE: Called whenever the object moves
 	}
 }
 
-
-
 int PortalContact::GetSign(int num) //Helper function to get the sign of an integer
 {
 	if (num == 0)
@@ -48,6 +65,18 @@ int PortalContact::GetSign(int num) //Helper function to get the sign of an inte
 	}
 }
 
+bool PortalContact::checkForCollision()
+{
+	return 0; //TODO: Implement
+
+
+
+}
+bool PortalContact::checkForNoCollision()
+{
+	return 0; //TODO: Implement
+}
+
 void PortalContact::TravelerEnterPortal() //TODO: Call this function when the cube collides with the portal
 {
 	objectTravel.EnterPortal();
@@ -58,7 +87,6 @@ void PortalContact::TravelerExitPortal() //TODO: Call this functionw when the cu
 {
 	objectTravel.ExitPortal();
 }
-
 
 #pragma region Getters&Setters
 
