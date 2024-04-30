@@ -17,8 +17,13 @@ private:
 
 	int GetSign(int num);
 
+	/*int portalWidth;
+	int portalHeight;*/
+
+	glm::vec3 portalDimensions; //width, height, length
+
 	bool checkForCollision();
-	bool checkForNoCollision();
+	/*bool checkForNoCollision();*/
 
 public:
 
@@ -28,10 +33,19 @@ public:
 
 	void HandleContacts();
 
+	void TravelerEnterPortal();
+	void TravelerExitPortal();
+
 	void SetObjectTravel(ObjectTravel objectTravel);
 	ObjectTravel GetObjectTravel();
 
-	void TravelerEnterPortal();
-	void TravelerExitPortal();
+	void SetPortalDimensions(glm::vec3 newDimensions);
+	glm::vec3 GetPortalDimensions();
+
+	/*void SetPortalWidth(int newWidth);
+	void SetPortalHeight(int newHeight);
+
+	int GetPortalWidth();
+	int GetPortalHeight();*/
 
 };

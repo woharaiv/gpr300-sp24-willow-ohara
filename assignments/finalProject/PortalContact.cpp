@@ -4,24 +4,33 @@
 PortalContact::PortalContact()
 {
 	isColliding = false;
+	portalDimensions = glm::vec3(1, 1, 1);
 }
 
 void PortalContact::CheckCollisions() //NOTE: This should be called int the update loop
 {
 
-	if (isColliding)
-	{
-		if (checkForNoCollision()) //if object is no longer colliding with portal
-		{
-			isColliding = false;
-			TravelerExitPortal();
-		}
-	}
+	//if (isColliding)
+	//{
+	//	if (checkForNoCollision()) //if object is no longer colliding with portal
+	//	{
+	//		isColliding = false;
+	//		TravelerExitPortal();
+	//	}
+	//}
 
 	if (checkForCollision()) //if object collide with portal
 	{
 		isColliding = true;
 		TravelerEnterPortal();
+	}
+	else
+	{
+		if (isColliding)
+		{
+			isColliding = false;
+			TravelerExitPortal();
+		}
 	}
 
 }
@@ -67,15 +76,36 @@ int PortalContact::GetSign(int num) //Helper function to get the sign of an inte
 
 bool PortalContact::checkForCollision()
 {
-	return 0; //TODO: Implement
+	/*int objectWidth = objectTravel.GetObjectWidth();
+	int objectHeight = objectTravel.GetObjectHeight();*/
 
+	glm::vec3 objectDimensions = objectTravel.GetObjectDimensions();
 
+	glm::vec3 objectPosition = objectTravel.GetObjectPosition().position;
 
+	glm::vec3 portalPosition = portalTransform.position;
+
+	if (objectPosition.x < portalPosition.x + portalDimensions.x &&
+		objectPosition.x + objectDimensions.x > portalPosition.x &&
+		objectPosition.y < portalPosition.y + portalDimensions.y &&
+		objectPosition.y + objectDimensions.y > portalPosition.y &&
+		objectPosition.z < portalPosition.z + portalDimensions.z &&
+		objectPosition.z + objectDimensions.z > portalPosition.z)
+	{
+		//Objects are colliding
+		return 1;
+	}
+	else
+	{
+		return 0; 
+	}
+	
 }
-bool PortalContact::checkForNoCollision()
-{
-	return 0; //TODO: Implement
-}
+
+//bool PortalContact::checkForNoCollision()
+//{
+//	return 0; //TODO: Implement
+//}
 
 void PortalContact::TravelerEnterPortal() //TODO: Call this function when the cube collides with the portal
 {
@@ -99,5 +129,35 @@ ObjectTravel PortalContact::GetObjectTravel()
 {
 	return objectTravel;
 }
+
+void PortalContact::SetPortalDimensions(glm::vec3 newDimensions)
+{
+	portalDimensions = newDimensions;
+}
+
+glm::vec3 PortalContact::GetPortalDimensions()
+{
+	return portalDimensions;
+}
+
+//void PortalContact::SetPortalWidth(int newWidth)
+//{
+//	portalWidth = newWidth;
+//}
+//
+//void PortalContact::SetPortalHeight(int newHeight)
+//{
+//	portalHeight = newHeight;
+//}
+//
+//int PortalContact::GetPortalWidth()
+//{
+//	return portalWidth;
+//}
+//
+//int PortalContact::GetPortalHeight()
+//{
+//	return portalHeight;
+//}
 
 #pragma endregion

@@ -73,4 +73,34 @@ ew::Transform ObjectTravel::GetPortalTwoTransform()
 	return portalTwoTransform;
 }
 
+//void ObjectTravel::SetObjectWidth(int newWidth)
+//{
+//	objectWidth = newWidth;
+//}
+//
+//void ObjectTravel::SetObjectHeight(int newHeight)
+//{
+//	objectHeight = newHeight;
+//}
+//
+//int ObjectTravel::GetObjectWidth()
+//{
+//	return objectWidth;
+//}
+//
+//int ObjectTravel::GetObjectHeight()
+//{
+//	return objectHeight;
+//}
+
+void ObjectTravel::SetObjectDimensions(glm::vec3 newDimensions)
+{
+	objectDimensions = newDimensions;
+}
+
+glm::vec3 ObjectTravel::GetObjectDimensions()
+{
+	return objectDimensions;
+}
+
 #pragma endregion

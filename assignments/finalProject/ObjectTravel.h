@@ -16,6 +16,11 @@ private:
 	ew::Transform portalTwoTransform;
 	glm::vec3 previousObjectOffset;
 
+	/*int objectWidth;
+	int objectHeight;*/
+
+	glm::vec3 objectDimensions; //width, height, length
+
 public:
 
 	void Teleport( glm::vec3 position, glm::quat quaternion);
@@ -25,6 +30,8 @@ public:
 
 	void UpdateObjectPosition(ew::Transform cameraPosition);
 
+	#pragma region Getters&Setters
+
 	ew::Transform GetObjectPosition();
 
 	glm::vec3 GetPreviousObjectOffset();
@@ -33,7 +40,19 @@ public:
 
 	void SetPortalOneTransform(ew::Transform portalTransform);
 	void SetPortalTwoTransform(ew::Transform portalTransform);
-	
+
 	ew::Transform GetPortalOneTransform();
 	ew::Transform GetPortalTwoTransform();
+
+	/*void SetObjectWidth(int newWidth);
+	void SetObjectHeight(int newHeight);
+
+	int GetObjectWidth();
+	int GetObjectHeight();*/
+
+	void SetObjectDimensions(glm::vec3 newDimensions);
+	glm::vec3 GetObjectDimensions();
+
+	#pragma endregion
+	
 };
