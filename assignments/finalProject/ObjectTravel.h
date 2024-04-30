@@ -3,13 +3,13 @@
 #include <ew/transform.h>
 
 #include <willowLib/portals.h>
+#include "PortalContact.h"
 
 class ObjectTravel
 {
 
 private:
 
-	//glm::vec3 cameraLocation;
 	ew::Transform objectTransform;
 	bool inPortalThreshold;
 	ew::Transform portalOneTransform;
@@ -25,16 +25,17 @@ public:
 
 	void UpdateObjectPosition(ew::Transform cameraPosition);
 
+	void CheckCollisions();
+
 	ew::Transform GetObjectPosition();
 
 	glm::vec3 GetPreviousObjectOffset();
 
 	void SetPreviousObjectOffset(glm::vec3 newOffset);
 
-
-	/*void SetPortalOneTransform(ew::Transform portalTransform);
+	void SetPortalOneTransform(ew::Transform portalTransform);
 	void SetPortalTwoTransform(ew::Transform portalTransform);
 	
 	ew::Transform GetPortalOneTransform();
-	ew::Transform GetPortalTwoTransform();*/
+	ew::Transform GetPortalTwoTransform();
 };

@@ -9,7 +9,7 @@ class PortalContact
 {
 private:
 
-	void CheckCollisions();
+	//void CheckCollisions();
 
 	ObjectTravel objectTravel;
 	ew::Transform portalTransform;
@@ -24,5 +24,7 @@ public:
 	void SetObjectTravel(ObjectTravel objectTravel);
 	ObjectTravel GetObjectTravel();
 
+	void TravelerEnterPortal();
+	void TravelerExitPortal();
 
 };
