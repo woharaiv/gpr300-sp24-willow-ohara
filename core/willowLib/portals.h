@@ -8,8 +8,6 @@
 
 namespace willowLib
 {
-	
-
 	//Function from https://discussions.unity.com/t/converting-matrix4x4-to-quaternion-vector3/1438/2
 	static glm::quat QuaternionFromMatrix(glm::mat4 m) {
 		// Adapted from: http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/index.htm
@@ -37,7 +35,7 @@ namespace willowLib
 		ew::Camera portalCamera;
 
 		StencilPass portalStencil;
-		DisplayPass display;
+		DisplayPassToTexture display;
 		DeferredPass portalPerspective;
 
 		Portal(glm::vec3 startPos = glm::vec3(0));

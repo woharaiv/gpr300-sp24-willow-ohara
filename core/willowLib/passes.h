@@ -6,6 +6,7 @@ namespace willowLib
 {
 	const int SHADOW_RESOLUTION = 2048;
 
+
 	struct DeferredPass {
 		GLuint fbo = 0;
 		GLuint world_position = 0;
@@ -13,11 +14,11 @@ namespace willowLib
 		GLuint albedo = 0;
 		GLuint depth = 0;
 	};
-	void createDeferredPass(DeferredPass* deferred, int screenWidth, int screenHeight);
+	void createDeferredPass(DeferredPass* deferred, int screenWidth = 1080, int screenHeight = 720);
 
 	struct DisplayPass {
-		GLuint vao;
-		GLuint vbo;
+		GLuint vao = 0;
+		GLuint vbo = 0;
 	};
 	void createDisplayPass(DisplayPass* disp);
 
@@ -28,7 +29,7 @@ namespace willowLib
 		GLuint fbo = 0;
 		GLuint scene = 0;
 	};
-	void createDisplayToTexturePass(DisplayPassToTexture dispToTex);
+	void createDisplayToTexturePass(DisplayPassToTexture* dispToTex, int screenWidth = 1080, int screenHeight = 720);
 
 	struct StencilPass {
 		GLuint fbo = 0;

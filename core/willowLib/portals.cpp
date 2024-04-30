@@ -45,6 +45,8 @@ namespace willowLib
 		if (!cullPortalSide)
 			glDisable(GL_CULL_FACE);
 		shader->setMat4("_Model", transform.modelMatrix());
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, display.scene);
 		mesh->draw();
 		if (!cullPortalSide)
 			glEnable(GL_CULL_FACE);

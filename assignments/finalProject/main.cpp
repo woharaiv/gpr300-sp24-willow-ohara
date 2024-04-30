@@ -26,6 +26,7 @@ void resetCamera(ew::Camera* camera, ew::CameraController* controller);
 void drawAtPos(ew::Model*, glm::vec3, ew::Shader*);
 void drawAtPos(ew::Mesh*, glm::vec3, ew::Shader*);
 void runLightingPass(ew::Shader* displayShader, willowLib::DisplayPass* disp, willowLib::DeferredPass* def, ew::Camera* cam);
+void runLightingPass(ew::Shader* displayShader, willowLib::DisplayPassToTexture* disp, willowLib::DeferredPass* def, ew::Camera* cam);
 
 //Global state
 int screenWidth = 1080;
@@ -106,7 +107,9 @@ int main() {
 	ew::Shader shader = ew::Shader("assets/geometryPass.vert", "assets/geometryPass.frag");
 	ew::Shader shadow_shader = ew::Shader("assets/shadow.vert", "assets/shadow.frag");
 	ew::Shader display_shader = ew::Shader("assets/lightingPass.vert", "assets/lightingPass.frag");
+	ew::Shader portal_scene_shader = ew::Shader("assets/portalLightingPass.vert", "assets/portalLightingPass.frag");
 	ew::Shader light_orb = ew::Shader("assets/lightOrb.vert", "assets/lightOrb.frag");
+	ew::Shader portal_shader = ew::Shader("assets/portalShader.vert", "assets/portalShader.frag");
 
 	GLuint marbleTexture = ew::loadTexture("assets/marble_color.jpg");
 	GLuint marbleRoughness = ew::loadTexture("assets/marble_roughness.jpg");
@@ -129,10 +132,13 @@ int main() {
 	ew::Mesh directionalLightMesh = ew::createCylinder(0.75, 2, 8);
 
 	willowLib::createDeferredPass(&basePass, screenWidth, screenHeight);
-	willowLib::createDeferredPass(&bluePortal.portalPerspective, screenWidth, screenHeight);
-	willowLib::createDeferredPass(&orangePortal.portalPerspective, screenWidth, screenHeight);
 	willowLib::createDisplayPass(&display);
 	willowLib::createShadowPass(&shadow);
+
+	willowLib::createDeferredPass(&bluePortal.portalPerspective);
+	willowLib::createDisplayToTexturePass(&bluePortal.display);
+	willowLib::createDeferredPass(&orangePortal.portalPerspective);
+	willowLib::createDisplayToTexturePass(&orangePortal.display);
 
 	initialize_point_lights();
 
@@ -210,11 +216,6 @@ int main() {
 				drawAtPos(&monkeyModel, glm::vec3(i*5, 0, j*-5), &shader);
 			}
 		}
-		//Draw Portals
-		bluePortal.drawPortal(&portalMesh, &shader, true);
-		glBindTextureUnit(0, brickTexture);
-		orangePortal.drawPortal(&portalMesh, &shader, true);
-		
 		//Draw Ground
 		glBindTextureUnit(0, marbleTexture);
 		drawAtPos(&planeMesh, glm::vec3(20, -2, -20), &shader);
@@ -284,8 +285,16 @@ int main() {
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		//===Lighting Pass===
+		runLightingPass(&portal_scene_shader, &bluePortal.display, &bluePortal.portalPerspective, &bluePortal.portalCamera);
+		runLightingPass(&portal_scene_shader, &orangePortal.display, &orangePortal.portalPerspective, &orangePortal.portalCamera);
 		runLightingPass(&display_shader, &display, &basePass, &camera);
 
+		//===Draw Portals===
+		portal_shader.use();
+		portal_shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+		bluePortal.drawPortal(&portalMesh, &portal_shader, true);
+		orangePortal.drawPortal(&portalMesh, &portal_shader, true);
+		
 		//===Light Orbs===
 		glEnable(GL_DEPTH_TEST);
 		//Copy lighting pass depth buffer to the current fbo
@@ -361,6 +370,50 @@ void runLightingPass(ew::Shader* displayShader, willowLib::DisplayPass* disp, wi
 	//Draw screen triangle
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 }
+void runLightingPass(ew::Shader* displayShader, willowLib::DisplayPassToTexture* disp, willowLib::DeferredPass* def, ew::Camera* cam)
+{
+	glClearColor(BACKGROUND_COLOR.r, BACKGROUND_COLOR.g, BACKGROUND_COLOR.b, 1.0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glBindVertexArray(disp->vao);
+	glBindTextureUnit(0, def->world_position);
+	glBindTextureUnit(1, def->world_normal);
+	glBindTextureUnit(2, def->albedo);
+	glBindTextureUnit(3, shadow.map);
+	glBindFramebuffer(GL_FRAMEBUFFER, disp->fbo);
+
+	//Use plain shader for final draw
+	displayShader->use();
+
+	//Maps from geometry pass
+	displayShader->setInt("gPosition", 0);
+	displayShader->setInt("gNormals", 1);
+	displayShader->setInt("gAlbedo", 2);
+	displayShader->setInt("shadowMap", 3);
+
+	//Lighting variables
+	displayShader->setVec3("viewPos", cam->position);
+	displayShader->setVec3("ambientColor", BACKGROUND_COLOR / 2.0f); //Ambient color is realtive to background color, making it feel natural
+	displayShader->setVec3("directionalLightPosition", glm::vec3(main_light_pos[0], main_light_pos[1], main_light_pos[2]));
+	displayShader->setMat4("_LightSpaceMatrix", lightSpaceMatrix);
+
+	displayShader->setFloat("material.Ka", material.Ka);
+	displayShader->setFloat("material.Kd", material.Kd);
+	displayShader->setFloat("material.Ks", material.Ks);
+	displayShader->setFloat("material.Shininess", material.Shininess);
+	for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+	{
+		displayShader->setVec3(("pointLights[" + std::to_string(i) + "].position"), pointLights[i].position);
+		displayShader->setVec4(("pointLights[" + std::to_string(i) + "].color"), pointLights[i].color);
+		displayShader->setFloat(("pointLights[" + std::to_string(i) + "].radius"), pointLights[i].radius);
+	}
+
+	//Disable detph testing
+	glDisable(GL_DEPTH_TEST);
+	//Draw screen triangle
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+	//Unbind FBO
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
 
 void drawAtPos(ew::Model* model, glm::vec3 position, ew::Shader* shader)
 {
@@ -425,7 +478,7 @@ void drawUI() {
 
 		ImGui::Image((ImTextureID)bluePortal.portalPerspective.albedo, windowSize, ImVec2(0, 1), ImVec2(1, 0));
 		ImGui::SameLine();
-		ImGui::Image((ImTextureID)shadow.map, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+		ImGui::Image((ImTextureID)bluePortal.display.scene, windowSize, ImVec2(0, 1), ImVec2(1, 0));
 	}
 	if (ImGui::CollapsingHeader("When looking through the Orange Portal, you'll see"))
 	{
@@ -439,7 +492,7 @@ void drawUI() {
 
 		ImGui::Image((ImTextureID)orangePortal.portalPerspective.albedo, windowSize, ImVec2(0, 1), ImVec2(1, 0));
 		ImGui::SameLine();
-		ImGui::Image((ImTextureID)shadow.map, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+		ImGui::Image((ImTextureID)orangePortal.display.scene, windowSize, ImVec2(0, 1), ImVec2(1, 0));
 	}
 
 	ImGui::End();
