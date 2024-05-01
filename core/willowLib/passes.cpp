@@ -54,7 +54,6 @@ namespace willowLib
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	}
 
-	//TODO: Make display passes for the other portals
 	void createDisplayPass(DisplayPass* disp)
 	{
 		float quad[] = {
@@ -84,6 +83,61 @@ namespace willowLib
 		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
 
 		glBindVertexArray(0);
+	}
+
+	void createDisplayToTexturePass(DisplayPassToTexture* dispToTex, int screenWidth, int screenHeight)
+	{
+		float quad[] = {
+			//-X- -Y-  -U- -V- 
+			  //Tri 1
+			  -1,  1,   0,  1,
+			  -1, -1,   0,  0,
+			   1,  1,   1,  1,
+
+			   //Tri 2
+				1, -1,   1,  0,
+				1,  1,   1,  1,
+			   -1, -1,   0,  0,
+		};
+		//Set up VAO and VBO for screen quad
+		glGenVertexArrays(1, &dispToTex->vao);
+		glGenBuffers(1, &dispToTex->vbo);
+
+		glBindVertexArray(dispToTex->vao);
+		glBindBuffer(GL_ARRAY_BUFFER, dispToTex->vbo);
+
+		glBufferData(GL_ARRAY_BUFFER, sizeof(quad), &quad, GL_STATIC_DRAW);
+
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+
+		glBindVertexArray(0);
+		
+		//create framebuffer
+		glCreateFramebuffers(1, &dispToTex->fbo);
+		glBindFramebuffer(GL_FRAMEBUFFER, dispToTex->fbo);
+
+		//generate scene buffer
+		glGenTextures(1, &dispToTex->scene);
+		glBindTexture(GL_TEXTURE_2D, dispToTex->scene);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, screenWidth, screenHeight, 0, GL_RGB, GL_FLOAT, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		//Attach buffers to the FBO
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, dispToTex->scene, 0);
+		
+		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		{
+			printf("ERROR::FRAMEBUFFER:: Framebuffer is not complete!\n");
+		}
+
+		glDrawBuffer(GL_COLOR_ATTACHMENT0);
+
+		//Unbind the framebuffer
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	}
 
 	void createShadowPass(ShadowPass* shadow)
