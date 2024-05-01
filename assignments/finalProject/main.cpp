@@ -29,6 +29,7 @@ void resetCamera(ew::Camera* camera, ew::CameraController* controller);
 void drawAtPos(ew::Model*, glm::vec3, ew::Shader*);
 void drawAtPos(ew::Mesh*, glm::vec3, ew::Shader*);
 void runLightingPass(ew::Shader* displayShader, willowLib::DisplayPass* disp, willowLib::DeferredPass* def, ew::Camera* cam);
+void ResolveCollisions();
 
 //Global state
 int screenWidth = 1080;
@@ -169,11 +170,8 @@ int main() {
 		glEnable(GL_DEPTH_TEST);
 
 		cameraController.move(window, &camera, deltaTime);
-		//ResolveCollisions();
-		
-		bluePortal.updatePortalPerspective(&camera);
-		orangePortal.updatePortalPerspective(&camera);
 
+		ResolveCollisions();
 		
 		//=====SHADOW PASS=====
 		shadow_shader.use();
@@ -513,12 +511,18 @@ GLFWwindow* initWindow(const char* title, int width, int height) {
 }
 
 
-//void ResolveCollisions()
-//{
-//
-//
-//
-//}
+void ResolveCollisions()
+{
+	bluePortal.updatePortalPerspective(&camera);
+	orangePortal.updatePortalPerspective(&camera);
+
+	bluePortalContact.CheckCollisions();
+	orangePortalContact.CheckCollisions();
+
+	bluePortalContact.HandleContacts();
+	orangePortalContact.HandleContacts();
+}
+
 //
 //void SetupPlayer()
 //{
