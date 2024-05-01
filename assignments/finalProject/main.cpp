@@ -92,8 +92,8 @@ willowLib::ShadowPass shadow;
 ew::Transform planeTransform;
 
 //Portals
-willowLib::Portal bluePortal(glm::vec3(-1, 3, -5));
-willowLib::Portal orangePortal(glm::vec3(-3.5, 3, -2.5));
+willowLib::Portal bluePortal(glm::vec3(-2, 3, -5));
+willowLib::Portal orangePortal(glm::vec3(-2, 3, -5));
 
 //Portal FX
 glm::vec2 directions = glm::vec2(1.0, 2.0);
@@ -311,21 +311,6 @@ int main() {
 		runLightingPass(&portal_scene_shader, &orangePortal.display, &orangePortal.portalPerspective, &orangePortal.portalCamera);
 		runLightingPass(&display_shader, &display, &basePass, &camera);
 
-		//===Draw Portals===
-		portal_shader.use();
-		portal_shader.setMat4("_ViewProjection", camera.projectionMatrix()* camera.viewMatrix());
-		portal_shader.setFloat("time", time);
-		portal_shader.setVec2("directions", directions);
-		portal_shader.setFloat("squash", squash);
-		portal_shader.setFloat("intensity", intensity);
-
-		portal_shader.setVec3("color", blue);
-		bluePortal.drawPortal(&portalMesh, &portal_shader, true);
-		portal_shader.setVec3("color", orange);
-		orangePortal.drawPortal(&portalMesh, &portal_shader, true);
-
-
-		
 		//===Light Orbs===
 		glEnable(GL_DEPTH_TEST);
 		//Copy lighting pass depth buffer to the current fbo
@@ -352,7 +337,22 @@ int main() {
 		light_orb.setMat4("_Model", m);
 		light_orb.setVec3("_Color", glm::vec3(0.0));
 		directionalLightMesh.draw();
+		
+		//===Draw Portals===
+		portal_shader.use();
+		portal_shader.setMat4("_ViewProjection", camera.projectionMatrix()* camera.viewMatrix());
+		portal_shader.setFloat("time", time);
+		portal_shader.setVec2("directions", directions);
+		portal_shader.setFloat("squash", squash);
+		portal_shader.setFloat("intensity", intensity);
 
+		portal_shader.setVec3("color", blue);
+		bluePortal.drawPortal(&portalMesh, &portal_shader, true);
+		portal_shader.setVec3("color", orange);
+		orangePortal.drawPortal(&portalMesh, &portal_shader, true);
+
+
+		
 		drawUI();
 
 		glfwSwapBuffers(window);

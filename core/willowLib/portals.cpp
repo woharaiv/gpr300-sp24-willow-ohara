@@ -8,7 +8,7 @@ namespace willowLib
 	}
 	void Portal::setYaw(float radians)
 	{
-		transform.rotation = glm::rotate(transform.rotation, radians, glm::vec3(0, 1, 0));
+		transform.rotation = glm::rotate(transform.rotation, radians, glm::vec3(0, -1, 0));
 		yaw = radians;
 	}
 	glm::vec3 Portal::updatePortalPerspective(ew::Camera* observer)
@@ -20,24 +20,22 @@ namespace willowLib
 			return glm::vec3(-1);
 		}
 		
-		glm::mat4 m = (transform.modelMatrix() * linkedPortal->transform.modelMatrix() * observer->viewMatrix());
+		ew::Transform observerTransform, observerOffsetTransform;
+		observerTransform.position = -observer->position;
+		observerTransform.rotation = glm::quatLookAt(glm::normalize(observer->target - observer->position), glm::vec3(0, -1, 0));
+
+		observerOffsetTransform.position = observer->target - observer->position;
+		observerOffsetTransform.rotation = glm::quatLookAt(glm::normalize(observer->target - observer->position), glm::vec3(0, -1, 0));
+
+		glm::mat4 m = (transform.modelMatrix() * linkedPortal->transform.modelMatrix() * observerTransform.modelMatrix());
 		
-		//Place in portal cam at out portal position
 		portalCamera.position = m[3];
-		
-		//Get target position from quaternion
-		glm::quat q = QuaternionFromMatrix(m);
-		glm::vec3 u(q.x, q.y, q.z);
-		glm::vec3 v(0, 0, 1);
-		glm::vec3 localLookAt = glm::dot(u, v) * u + (q.w * q.w - dot(u, u)) * v + q.w * cross(u, v);
-		portalCamera.target = portalCamera.position + localLookAt;
+		portalCamera.position.y *= -1.0f;
+		portalCamera.position.y += 5.0f;
+
+		portalCamera.target = portalCamera.position + observerOffsetTransform.position;
 
 		return portalCamera.position;
-		// draw out portal to stencil buffer
-		// draw scene from in portal camera without out potyal, using in stencil buffer to discard unnedded fragments
-		// draw finished scene to texture
-		// draw in portal, using its screen space uvs to map the portal camera's texture
-		//
 	}
 
 	void Portal::drawPortal(ew::Mesh* mesh, ew::Shader* shader, bool cullPortalSide)
