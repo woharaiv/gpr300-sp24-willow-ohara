@@ -89,7 +89,19 @@ willowLib::ShadowPass shadow;
 ew::Transform planeTransform;
 //Portals
 willowLib::Portal bluePortal(glm::vec3(-1, 3, -5));
-willowLib::Portal orangePortal(glm::vec3(-1, 3, -5));
+willowLib::Portal orangePortal(glm::vec3(-3.5, 3, -2.5));
+
+//Portal FX
+glm::vec2 directions = glm::vec2(1.0, 2.0);
+float squash = 5.0;
+float intensity = 0.02;
+glm::vec3 blue = glm::vec3(0.0, 0.0, 0.9);
+glm::vec3 orange = glm::vec3(1.0, 0.5, 0.0);
+
+//Cube Location
+glm::vec3 CubePos = glm::vec3(1.0, 0.5, 2.0);
+
+
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);
@@ -121,6 +133,10 @@ int main() {
 	ew::Mesh planeMesh = ew::createPlane(64, 64, 8);
 	planeTransform.position.y = -2;
 
+	ew::Mesh cubeMesh = ew::createCube(1);
+	ew::Transform cubeTransform;
+	cubeTransform.position = CubePos;
+	
 	//Initialize portals
 	ew::Mesh portalMesh = ew::createVerticalPlane(2, 4.5, 200);
 	
@@ -219,6 +235,7 @@ int main() {
 		//Draw Ground
 		glBindTextureUnit(0, marbleTexture);
 		drawAtPos(&planeMesh, glm::vec3(20, -2, -20), &shader);
+		drawAtPos(&cubeMesh, CubePos, &shader);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		//===Blue Portal Geometry Pass===
@@ -247,6 +264,7 @@ int main() {
 		//Draw Ground
 		glBindTextureUnit(0, marbleTexture);
 		drawAtPos(&planeMesh, glm::vec3(20, -2, -20), &shader);
+		drawAtPos(&cubeMesh, CubePos, &shader);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		//===Orange Portal Geometry Pass===
@@ -274,6 +292,7 @@ int main() {
 		//Draw Ground
 		glBindTextureUnit(0, marbleTexture);
 		drawAtPos(&planeMesh, glm::vec3(20, -2, -20), &shader);
+		drawAtPos(&cubeMesh, CubePos, &shader);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		//===Lighting Pass===
@@ -283,9 +302,18 @@ int main() {
 
 		//===Draw Portals===
 		portal_shader.use();
-		portal_shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+		portal_shader.setMat4("_ViewProjection", camera.projectionMatrix()* camera.viewMatrix());
+		portal_shader.setFloat("time", time);
+		portal_shader.setVec2("directions", directions);
+		portal_shader.setFloat("squash", squash);
+		portal_shader.setFloat("intensity", intensity);
+
+		portal_shader.setVec3("color", blue);
 		bluePortal.drawPortal(&portalMesh, &portal_shader, true);
+		portal_shader.setVec3("color", orange);
 		orangePortal.drawPortal(&portalMesh, &portal_shader, true);
+
+
 		
 		//===Light Orbs===
 		glEnable(GL_DEPTH_TEST);
@@ -486,6 +514,30 @@ void drawUI() {
 		ImGui::SameLine();
 		ImGui::Image((ImTextureID)orangePortal.display.scene, windowSize, ImVec2(0, 1), ImVec2(1, 0));
 	}
+
+	if (ImGui::CollapsingHeader("Portal Shader Effects")) {
+		ImGui::SliderFloat3("Blue Portal Color", &blue.x, 0, 1);
+		ImGui::SliderFloat3("Orange Portal Color", &orange.x, 0, 1);
+		ImGui::SliderFloat2("Wobble Up and Down", &directions.x, 0, 20);
+		ImGui::SliderFloat("How much wobble", &squash, 0.01, 10);
+		ImGui::SliderFloat("How itense", &intensity, 0.01, 20);
+		if (ImGui::Button("Reset Portal FX"))
+		{
+			directions = glm::vec2(1.0, 2.0);
+			squash = 5.0;
+			intensity = 0.02;
+			blue = glm::vec3(0.0, 0.0, 0.9);
+			orange = glm::vec3(1.0, 0.5, 0.0);
+		}
+	}
+
+	ImGui::SliderFloat3("Cube Position", &CubePos.x, -10, 10);
+	if (ImGui::Button("Reset Cube"))
+	{
+		CubePos = glm::vec3(1.0, 0.5, 2.0);
+	}
+
+
 
 	ImGui::End();
 
