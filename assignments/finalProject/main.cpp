@@ -19,8 +19,8 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
-#include "Particle.h"
-#include "ParticleContact.h"
+#include "ObjectTravel.h"
+#include "PortalContact.h"
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 GLFWwindow* initWindow(const char* title, int width, int height);
@@ -89,9 +89,19 @@ willowLib::DisplayPass display;
 willowLib::ShadowPass shadow;
 
 ew::Transform planeTransform;
+
 //Portals
 willowLib::Portal bluePortal(glm::vec3(-1, 3, -5));
 willowLib::Portal orangePortal(glm::vec3(-3.5, 3, -2.5));
+
+//TODO: Change the size values for all of the contacts and the travel
+
+//Portal contacts (portal transform, attachedPortalTransform, portalDimensions)
+PortalContact bluePortalContact(glm::vec3(-1, 3, -5), glm::vec3(-3.5, 3, -2.5) ,glm::vec3(10, 10, 10)); //Temporary values
+PortalContact orangePortalContact(glm::vec3(-3.5, 3, -2.5), glm::vec3(-1, 3, -5), glm::vec3(10, 10, 10)); //Temporary values
+
+//Object Travel (objectPos, portalOnePos, portalTwoPos, objectDimensions)
+ObjectTravel objectTravel(glm::vec3(0, 0, 0), glm::vec3(-1, 3, -5), glm::vec3(-3.5, 3, -2.5), glm::vec3(5, 5, 5)); //Temporary values
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);

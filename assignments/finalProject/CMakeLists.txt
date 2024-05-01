@@ -15,7 +15,7 @@ ${CMAKE_CURRENT_SOURCE_DIR}/assets/
 ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets/)
 
 install(FILES ${FINALPROJECT_INC} DESTINATION include/finalProject)
-add_executable(finalProject ${FINALPROJECT_SRC} ${FINALPROJECT_INC} "Particle.cpp" "Particle.h" "ParticleContact.cpp" "ParticleContact.h" "PortalContact.h" "PortalContact.cpp")
+add_executable(finalProject ${FINALPROJECT_SRC} ${FINALPROJECT_INC} "Particle.cpp" "Particle.h" "ParticleContact.cpp" "ParticleContact.h" "PortalContact.h" "PortalContact.cpp" "ObjectTravel.cpp" "ObjectTravel.h")
 target_link_libraries(finalProject PUBLIC core IMGUI assimp)
 target_include_directories(finalProject PUBLIC ${CORE_INC_DIR} ${stb_INCLUDE_DIR})
 

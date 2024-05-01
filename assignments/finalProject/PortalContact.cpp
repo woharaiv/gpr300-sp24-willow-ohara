@@ -7,6 +7,30 @@ PortalContact::PortalContact()
 	portalDimensions = glm::vec3(1, 1, 1);
 }
 
+PortalContact::PortalContact(ew::Transform portalTransform, ew::Transform attachedPortalTransform, glm::vec3 portalDimensions)
+{
+	this->portalTransform = portalTransform;
+	this->attachedPortalTransform = attachedPortalTransform;
+	this->portalDimensions = portalDimensions;
+	isColliding = false;
+}
+
+PortalContact::PortalContact(glm::vec3 portalPos, glm::vec3 attachedPortalPos, glm::vec3 portalDimensions)
+{
+	ew::Transform newPortalTransform;
+	newPortalTransform.position = portalPos;
+
+	this->portalTransform = newPortalTransform;
+
+	ew::Transform newAttachedPortalTransform;
+	newAttachedPortalTransform.position = attachedPortalPos;
+
+	this->attachedPortalTransform = newAttachedPortalTransform;
+
+	this->portalDimensions = portalDimensions;
+	isColliding = false;
+}
+
 void PortalContact::CheckCollisions() //NOTE: This should be called int the update loop
 {
 
@@ -39,7 +63,7 @@ void PortalContact::HandleContacts() //NOTE: This should be called in the update
 {
 	glm::vec3 portalOffset = objectTravel.GetObjectPosition().position - portalTransform.position;
 
-	glm::mat4 matrix = attatchedPortalTransform.modelMatrix() * portalTransform.modelMatrix() * objectTravel.GetObjectPosition().modelMatrix();
+	glm::mat4 matrix = attachedPortalTransform.modelMatrix() * portalTransform.modelMatrix() * objectTravel.GetObjectPosition().modelMatrix();
 
 	int portalSide = GetSign(glm::dot(portalOffset, portalTransform.position)); //TODO: Change the portalTransform.position to the portals forward vector
 

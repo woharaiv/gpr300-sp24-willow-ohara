@@ -1,3 +1,4 @@
+#pragma once
 
 #include <ew/external/glad.h>
 #include <ew/transform.h>
@@ -11,7 +12,7 @@ private:
 
 	ObjectTravel objectTravel;
 	ew::Transform portalTransform;
-	ew::Transform attatchedPortalTransform;
+	ew::Transform attachedPortalTransform;
 
 	bool isColliding;
 
@@ -28,6 +29,8 @@ private:
 public:
 
 	PortalContact();
+	PortalContact(ew::Transform portalTransform, ew::Transform attachedPortalTransform, glm::vec3 portalDimensions);
+	PortalContact(glm::vec3 portalPos, glm::vec3 attachedPortalPos, glm::vec3 portalDimensions);
 
 	void CheckCollisions();
 

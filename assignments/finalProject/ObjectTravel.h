@@ -1,3 +1,4 @@
+#pragma once
 
 #include <ew/external/glad.h>
 #include <ew/transform.h>
@@ -7,7 +8,6 @@
 
 class ObjectTravel
 {
-
 private:
 
 	ew::Transform objectTransform;
@@ -22,6 +22,10 @@ private:
 	glm::vec3 objectDimensions; //width, height, length
 
 public:
+
+	ObjectTravel();
+	ObjectTravel(ew::Transform objectTransform, ew::Transform portalOneTransform, ew::Transform portalTwoTransform, glm::vec3 objectDimensions);
+	ObjectTravel( glm::vec3 objectPos, glm::vec3 portalOnePos, glm::vec3 portalTwoPos, glm::vec3 objectDimensions);
 
 	void Teleport( glm::vec3 position, glm::quat quaternion);
 

@@ -2,6 +2,41 @@
 #include "ObjectTravel.h"
 
 
+ObjectTravel::ObjectTravel()
+{
+	inPortalThreshold = false;
+	previousObjectOffset = glm::vec3(0, 0, 0);
+}
+
+ObjectTravel::ObjectTravel(ew::Transform objectTransform, ew::Transform portalOneTransform, ew::Transform portalTwoTransform, glm::vec3 objectDimensions)
+{
+	this->objectTransform = objectTransform;
+	this->portalOneTransform = portalOneTransform;
+	this->portalTwoTransform = portalTwoTransform;
+	this->objectDimensions = objectDimensions;
+	inPortalThreshold = false;
+	previousObjectOffset = glm::vec3(0, 0, 0);
+}
+ObjectTravel::ObjectTravel(glm::vec3 objectPos, glm::vec3 portalOnePos, glm::vec3 portalTwoPos, glm::vec3 objectDimensions)
+{
+	ew::Transform newObjectTransform;
+	newObjectTransform.position = objectPos;
+	objectTransform = newObjectTransform;
+
+	ew::Transform newPortalOneTransform;
+	newPortalOneTransform.position = portalOnePos;
+	portalOneTransform = newPortalOneTransform;
+
+	ew::Transform newPortalTwoTransform;
+	newPortalTwoTransform.position = portalTwoPos;
+	portalTwoTransform = newPortalTwoTransform;
+
+	this->objectDimensions = objectDimensions;
+
+	inPortalThreshold = false;
+	previousObjectOffset = glm::vec3(0, 0, 0);
+}
+
 //NOTE: Called when the player has gone completely through the portal
 void ObjectTravel::Teleport(glm::vec3 position, glm::quat quaternion)
 {
