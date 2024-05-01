@@ -30,7 +30,7 @@ void drawAtPos(ew::Model*, glm::vec3, ew::Shader*);
 void drawAtPos(ew::Mesh*, glm::vec3, ew::Shader*);
 void runLightingPass(ew::Shader* displayShader, willowLib::DisplayPass* disp, willowLib::DeferredPass* def, ew::Camera* cam);
 void runLightingPass(ew::Shader* displayShader, willowLib::DisplayPassToTexture* disp, willowLib::DeferredPass* def, ew::Camera* cam);
-
+void ResolveCollisions();
 //Global state
 int screenWidth = 1080;
 int screenHeight = 720;
